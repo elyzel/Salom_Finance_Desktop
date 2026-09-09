@@ -1,0 +1,141 @@
+{
+  "contas": {
+    "Conta Corrente": 0.0,
+    "Receita Fixa": 3800.0,
+    "Despesa Fixa": -2822.0,
+    "Reserva Emergência": 0.0,
+    "Investimentos": 0.0
+  },
+  "transacoes": [
+    {
+      "id": "6c5d1b27-c30e-450d-bcae-6bba5aec6e67",
+      "tipo": "Receita",
+      "data": "15/03/2026",
+      "conta": "Receita Fixa",
+      "categoria": "💼 Trabalho",
+      "valor": 2200.0,
+      "descricao": "Salário Eliseu",
+      "parcelado": false,
+      "parcela_atual": 1,
+      "total_parcelas": 1,
+      "agendado": 0,
+      "conta_destino": null
+    },
+    {
+      "id": "a1429465-3fd5-427c-8bcf-d6c7c5c1e659",
+      "tipo": "Despesa",
+      "data": "15/03/2026",
+      "conta": "Despesa Fixa",
+      "categoria": "📚 Educação",
+      "valor": 1000.0,
+      "descricao": "Faculdade Inatel",
+      "parcelado": false,
+      "parcela_atual": 1,
+      "total_parcelas": 1,
+      "agendado": 0,
+      "conta_destino": null
+    },
+    {
+      "id": "976492f0-5ada-4900-bbe6-225bb8914b8a",
+      "tipo": "Despesa",
+      "data": "15/03/2026",
+      "conta": "Despesa Fixa",
+      "categoria": "🏠 Moradia",
+      "valor": 1400.0,
+      "descricao": "Aluguel + Conta de água",
+      "parcelado": false,
+      "parcela_atual": 1,
+      "total_parcelas": 1,
+      "agendado": 0,
+      "conta_destino": null
+    },
+    {
+      "id": "4fcbc019-f915-4da4-9fe7-a196077ca8f3",
+      "tipo": "Receita",
+      "data": "15/03/2026",
+      "conta": "Receita Fixa",
+      "categoria": "💼 Trabalho",
+      "valor": 1600.0,
+      "descricao": "Salário Ketlen",
+      "parcelado": false,
+      "parcela_atual": 1,
+      "total_parcelas": 1,
+      "agendado": 0,
+      "conta_destino": null
+    },
+    {
+      "id": "6b6666ed-2d59-440b-ad99-2e52c5dd041d",
+      "tipo": "Despesa",
+      "data": "15/03/2026",
+      "conta": "Despesa Fixa",
+      "categoria": "🏠 Moradia",
+      "valor": 80.0,
+      "descricao": "Conta de Internet",
+      "parcelado": false,
+      "parcela_atual": 1,
+      "total_parcelas": 1,
+      "agendado": 0,
+      "conta_destino": null
+    },
+    {
+      "id": "d452cae6-a01a-4a58-9246-1dc1448beb5e",
+      "tipo": "Despesa",
+      "data": "15/03/2026",
+      "conta": "Despesa Fixa",
+      "categoria": "💊 Saúde",
+      "valor": 342.0,
+      "descricao": "Convênio Ket",
+      "parcelado": false,
+      "parcela_atual": 1,
+      "total_parcelas": 1,
+      "agendado": 0,
+      "conta_destino": null
+    }
+  ],
+  "metas": [
+    {
+      "id": "32bfb508-4812-4112-b8c0-656ceb685cf9",
+      "nome": "Placa-mãe",
+      "emoji": "💻",
+      "valor_atual": 0.0,
+      "valor_alvo": 550.0,
+      "categoria": "Computador - Eliseu",
+      "prioritaria": 0,
+      "ordem": 0
+    },
+    {
+      "id": "9ab7ef36-d611-4a52-b64c-0e822d83f798",
+      "nome": "Carteira CNH",
+      "emoji": "🚗",
+      "valor_atual": 0.0,
+      "valor_alvo": 700.0,
+      "categoria": "Habilitação - Eliseu",
+      "prioritaria": 1,
+      "ordem": 1
+    },
+    {
+      "id": "51b9a437-82ea-4146-a2e4-45656463d20b",
+      "nome": "Barra de Polydance",
+      "emoji": "👗",
+      "valor_atual": 0.0,
+      "valor_alvo": 1199.0,
+      "categoria": "Barra - Ket",
+      "prioritaria": 0,
+      "ordem": 2
+    }
+  ],
+  "acoes": [],
+  "cdb": {
+    "valor": 2020.0,
+    "meta": 18000.0
+  },
+  "meta_investimentos": 0.0,
+  "metas_orcamento": {
+    "Moradia": 45,
+    "Educação": 35,
+    "Reserva de Emergência": 5,
+    "Investimentos": 5,
+    "Lazer": 5,
+    "Viagem": 5
+  }
+}
