@@ -28,6 +28,8 @@ class RecordsView(ctk.CTkFrame):
         self.titulo_label.pack(side="left", expand=True)
         ctk.CTkButton(header, text="▶", width=30, fg_color=COLORS['card'],
                       command=self._mes_proximo).pack(side="right")
+        ctk.CTkButton(header, text="🗑 Excluir Mês", width=110, fg_color=COLORS['error'],
+                      command=self._excluir_mes).pack(side="right", padx=(0, 10))
 
         # Frame scrollável para transações
         self.scroll = ctk.CTkScrollableFrame(self, fg_color=COLORS['bg_secondary'], corner_radius=10)
@@ -92,8 +94,25 @@ class RecordsView(ctk.CTkFrame):
         if messagebox.askyesno("Confirmar", "Excluir esta transação?"):
             self.controllers['transaction'].remover(tid)
             self._atualizar()
-            if self.callback:
-                self.callback()
+        if self.callback:
+            self.callback()
+
+    def _excluir_mes(self):
+        nome_mes = MESES.get(self.mes, '')
+        confirmar = messagebox.askyesno(
+            "Excluir mês inteiro",
+            f"Isso vai excluir TODAS as transações de {nome_mes} {self.ano} "
+            f"(incluindo agendamentos daquele mês) e reverter o saldo das contas. "
+            f"Essa ação não pode ser desfeita.\n\nDeseja continuar?"
+        )
+        if not confirmar:
+            return
+
+        qtd = self.controllers['transaction'].remover_por_mes(self.mes, self.ano)
+        messagebox.showinfo("Concluído", f"{qtd} registro(s) de {nome_mes} {self.ano} excluído(s).")
+        self._atualizar()
+        if self.callback:
+            self.callback()
 
     def _mes_anterior(self):
         if self.mes == 1:

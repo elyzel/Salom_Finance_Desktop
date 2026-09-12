@@ -81,7 +81,7 @@ class ImportView(ctk.CTkFrame):
     def _selecionar_arquivo(self):
         caminho = filedialog.askopenfilename(
             title="Selecione o extrato bancário",
-            filetypes=[("Extratos", "*.ofx *.qfx *.csv"), ("Todos os arquivos", "*.*")]
+            filetypes=[("Extratos", "*.ofx *.qfx *.csv *.pdf"), ("Todos os arquivos", "*.*")]
         )
         if not caminho:
             return

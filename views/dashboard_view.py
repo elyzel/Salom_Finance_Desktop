@@ -11,6 +11,9 @@ class DashboardView(ctk.CTkFrame):
         self.controllers = controllers
         self.ocultar = ocultar_valores
         self.mes, self.ano = mes_ano_atual()
+        self.visualizacao_grafico = "📊 Últimos Meses"  # aba selecionada por padrão
+
+        # Frame scrollável
         
         # Frame scrollável
         self.scroll = ctk.CTkScrollableFrame(self, fg_color=COLORS['bg_primary'])
@@ -92,7 +95,27 @@ class DashboardView(ctk.CTkFrame):
                      text_color=cor_msg).pack(pady=(5, 10))
 
         # Gráfico de barras agrupadas
-        self._grafico_barras(historico)
+                # Abas para escolher entre visão mensal (barras) e diária (linhas)
+        self._historico_cache = historico
+        toggle_frame = ctk.CTkFrame(self.scroll, fg_color=COLORS['bg_primary'])
+        toggle_frame.pack(pady=(0, 8))
+
+        self.seg_grafico = ctk.CTkSegmentedButton(
+            toggle_frame,
+            values=["📊 Últimos Meses", "📈 Diário do Mês"],
+            command=self._trocar_grafico_rd,
+            fg_color=COLORS['card'],
+            selected_color=COLORS['accent'],
+            unselected_color=COLORS['card']
+        )
+        self.seg_grafico.set(self.visualizacao_grafico)
+        self.seg_grafico.pack()
+
+        # Container onde o gráfico ativo é desenhado
+        self.frame_grafico_rd = ctk.CTkFrame(self.scroll, fg_color=COLORS['bg_primary'])
+        self.frame_grafico_rd.pack(fill="x")
+
+        self._desenhar_grafico_rd()
 
     def _dashboard_categorias(self, despesas_cat):
         """Dashboard de Gastos por Categoria"""
@@ -127,6 +150,61 @@ class DashboardView(ctk.CTkFrame):
             if t.tipo == 'Despesa':
                 totais[t.categoria] = totais.get(t.categoria, 0.0) + t.valor
         return dict(sorted(totais.items(), key=lambda x: x[1], reverse=True))
+
+    def _trocar_grafico_rd(self, valor):
+        """Chamado quando o usuário clica numa aba do seletor de gráfico."""
+        self.visualizacao_grafico = valor
+        self._desenhar_grafico_rd()
+
+    def _desenhar_grafico_rd(self):
+        """Limpa o container e desenha o gráfico correspondente à aba ativa."""
+        for w in self.frame_grafico_rd.winfo_children():
+            w.destroy()
+
+        if self.visualizacao_grafico == "📈 Diário do Mês":
+            dados = self.controllers['transaction'].get_movimentacao_diaria(self.mes, self.ano)
+            self._grafico_linhas_diario(dados)
+        else:
+            self._grafico_barras(self._historico_cache)
+
+    def _grafico_linhas_diario(self, dados):
+        try:
+            import matplotlib.pyplot as plt
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+            dias = dados['dias']
+            receitas = dados['receitas']
+            despesas = dados['despesas']
+
+            fig, ax = plt.subplots(figsize=(7, 3), facecolor=COLORS['chart_bg'])
+            ax.set_facecolor(COLORS['chart_bg'])
+
+            ax.plot(dias, receitas, label='Receitas', color=COLORS['success'],
+                    marker='o', markersize=3, linewidth=1.8, zorder=3)
+            ax.plot(dias, despesas, label='Despesas', color=COLORS['error'],
+                    marker='o', markersize=3, linewidth=1.8, zorder=3)
+
+            ax.set_xticks(dias)
+            ax.set_xticklabels(dias, color=COLORS['text'], fontsize=6)
+            ax.tick_params(axis='y', colors=COLORS['text'], labelsize=7)
+            ax.yaxis.set_major_formatter(
+                plt.FuncFormatter(lambda v, _: f"R${v/1000:.0f}k" if v >= 1000 else f"R${v:.0f}")
+            )
+            ax.set_xlabel("Dia do mês", color=COLORS['text'], fontsize=8)
+            ax.grid(axis='y', color=COLORS['bg_secondary'], linewidth=0.5, zorder=0)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+
+            ax.legend(facecolor=COLORS['bg_secondary'], labelcolor=COLORS['text'],
+                      fontsize=8, framealpha=0.6)
+
+            fig.subplots_adjust(top=0.9, bottom=0.22, left=0.1, right=0.97)
+            canvas = FigureCanvasTkAgg(fig, master=self.frame_grafico_rd)
+            canvas.draw()
+            canvas.get_tk_widget().pack(padx=20, pady=(0, 10))
+            plt.close(fig)
+        except Exception as e:
+            print(f"Erro ao renderizar gráfico de linhas: {e}")
 
     def _grafico_barras(self, historico):
         try:
@@ -170,7 +248,7 @@ class DashboardView(ctk.CTkFrame):
                       fontsize=8, framealpha=0.6)
 
             fig.subplots_adjust(top=0.88, bottom=0.18, left=0.12, right=0.97)
-            canvas = FigureCanvasTkAgg(fig, master=self.scroll)
+            canvas = FigureCanvasTkAgg(fig, master=self.frame_grafico_rd)
             canvas.draw()
             canvas.get_tk_widget().pack(padx=20, pady=(0, 10))
             plt.close(fig)

@@ -28,9 +28,12 @@ ACCOUNTS = [
 # Categorias com Emojis
 CATEGORIES = {
     '🛒 Mercado': '🛒',
+    '🥐 Padaria': '🥐',
     '🍔 Restaurante': '🍔',
+    '🍦 Sorveteria': '🍦',
     '🚌 Transporte': '🚌',
     '🏠 Moradia': '🏠',
+    '💳 Cartão de Crédito': '💳',
     '💡 Utilidades': '💡',
     '📶 Internet': '📶',
     '🎮 Lazer': '🎮',
@@ -39,7 +42,6 @@ CATEGORIES = {
     '📚 Educação': '📚',
     '👨‍👩‍👧 Família': '👨‍👩‍👧',
     '💼 Trabalho': '💼',
-    '🔧 Correção': '🔧',
     '📦 Outros': '📦'
 }
 
@@ -53,7 +55,10 @@ META_EMOJIS = [
 # Cores fixas por categoria para gráficos
 CATEGORY_COLORS = {
     '🛒 Mercado':      '#f59e0b',
+    '💳 Cartão de Crédito': "#7c0414",
+    '🥐 Padaria':      "#048596",
     '🍔 Restaurante':  '#ef4444',
+    '🍦 Sorveteria':   "#7244ef",
     '🚌 Transporte':   '#3b82f6',
     '🏠 Moradia':      '#8b5cf6',
     '💡 Utilidades':   '#06b6d4',
@@ -62,9 +67,8 @@ CATEGORY_COLORS = {
     '👕 Vestuário':    '#f97316',
     '💊 Saúde':        '#10b981',
     '📚 Educação':     '#14b8a6',
-    '👨‍👩‍👧 Família':    '#a855f7',
+    '👨‍👩‍👧 Família':      '#a855f7',
     '💼 Trabalho':     '#84cc16',
-    '🔧 Correção':     '#94a3b8',
     '📦 Outros':       '#64748b',
 }
 TRANSACTION_TYPES = ['Receita', 'Despesa', 'Transferência']

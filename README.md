@@ -1,4 +1,4 @@
-# 💰 Salom_Finance
+# 💰 Ket Finance
 
 > **Controle financeiro pessoal moderno, bonito e 100% local.**  
 > Feito para quem quer organizar as finanças sem depender de apps na nuvem ou assinaturas.
@@ -10,9 +10,9 @@
 
 ---
 
-## 🧭 O que é o Salom Finance?
+## 🧭 O que é o Ket Finance?
 
-O **Salom Finance** é um sistema desktop de controle financeiro pessoal desenvolvido em Python. Ele foi criado para ser simples de usar, visualmente agradável e completamente offline — seus dados ficam salvos no seu próprio computador, sem nenhuma conta ou servidor externo.
+O **Ket Finance** é um sistema desktop de controle financeiro pessoal desenvolvido em Python. Ele foi criado para ser simples de usar, visualmente agradável e completamente offline — seus dados ficam salvos no seu próprio computador, sem nenhuma conta ou servidor externo.
 
 Com ele você registra receitas e despesas, acompanha metas de economia, controla investimentos e visualiza tudo em gráficos claros — tudo em uma única tela.
 

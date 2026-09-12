@@ -63,6 +63,18 @@ class TransactionController:
                     self.db.ajustar_conta(t.conta_destino, -t.valor)
         self.db.remover_transacao(tid)
 
+    def remover_por_mes(self, mes, ano):
+
+        """Exclui TODAS as transações de um mês/ano (efetivadas e
+        agendadas), revertendo o saldo normalmente para cada uma —
+        mesmo comportamento de remover() aplicado em lote."""
+
+        todas = self.db.get_transacoes()
+        alvo = [t for t in todas if self._mes_ano(t.data) == (mes, ano)]
+        for t in alvo:
+            self.remover(t.id)
+        return len(alvo)
+
     def get_por_mes(self, mes, ano):
         return [t for t in self.db.get_transacoes()
                 if not t.agendado and self._mes_ano(t.data) == (mes, ano)]
@@ -96,3 +108,29 @@ class TransactionController:
                 **resumo
             })
         return resultado
+
+    def get_movimentacao_diaria(self, mes, ano):
+        """Soma Receitas e Despesas por DIA dentro do mês/ano informado.
+        Dias sem nenhuma transação entram como 0.0 (a linha cobre o mês
+        inteiro, sem 'buracos')."""
+        import calendar
+        dias_no_mes = calendar.monthrange(ano, mes)[1]
+        receitas_dia = {d: 0.0 for d in range(1, dias_no_mes + 1)}
+        despesas_dia = {d: 0.0 for d in range(1, dias_no_mes + 1)}
+
+        for t in self.get_por_mes(mes, ano):
+            dt = data_para_datetime(t.data)
+            if not dt:
+                continue
+            dia = dt.day
+            if t.tipo == 'Receita':
+                receitas_dia[dia] += t.valor
+            elif t.tipo == 'Despesa':
+                despesas_dia[dia] += t.valor
+
+        dias = list(range(1, dias_no_mes + 1))
+        return {
+            'dias': dias,
+            'receitas': [receitas_dia[d] for d in dias],
+            'despesas': [despesas_dia[d] for d in dias],
+        }

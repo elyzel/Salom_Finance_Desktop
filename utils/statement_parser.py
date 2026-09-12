@@ -30,27 +30,30 @@ from config import CATEGORIES
 # encontrados na descrição do lançamento (sem acento, maiúsculo), indicam
 # aquela categoria. A ordem importa: a primeira que bater, vence.
 PALAVRAS_CHAVE_CATEGORIA = {
-    '🛒 Mercado': ['MERCADO', 'SUPERMERCADO', 'ATACAD', 'HORTIFRUTI', 'CARREFOUR',
+    '🛒 Mercado': ['MERCADO', 'UNISSUL', 'SUPERMERCADO', 'ATACAD', 'HORTIFRUTI', 'CARREFOUR',
                    'PAO DE ACUCAR', 'EXTRA ', 'ASSAI', 'DIA SUPERMERCADO'],
     '🍔 Restaurante': ['IFOOD', 'RAPPI', 'RESTAURANTE', 'LANCHONETE', 'PIZZARIA',
                        'PADARIA', 'BAR ', 'MC DONALD', 'BURGER', 'HABIBS'],
+    '🥐 Padaria': ['RSCSS SANTA CLARA'],
+    '🍦 Sorveteria': ['THE BEST', 'LUIGI'],
+    '💳 Cartão de Crédito': ['FATURA PAGA ITAU PLATINA'],
     '🚌 Transporte': ['UBER', '99APP', '99POP', 'TAXI', 'METRO', 'ONIBUS',
                       'BILHETE UNICO', 'POSTO ', 'COMBUSTIVEL', 'ESTACIONAMENTO',
                       'PEDAGIO', 'IPVA'],
-    '🏠 Moradia': ['ALUGUEL', 'CONDOMINIO', 'IPTU', 'IMOBILIARIA'],
-    '💡 Utilidades': ['ENERGIA', 'ELETROPAULO', 'CEMIG', 'COPEL', 'CPFL',
+    '🏠 Moradia': ['ALUGUEL', 'TRIBUTO', 'VOLUY', 'CEMIG', 'CONDOMINIO', 'IPTU', 'IMOBILIARIA'],
+    '💡 Utilidades': ['ENERGIA', 'ROYAL' 'ELETROPAULO', 'CEMIG', 'COPEL', 'CPFL',
                       'SABESP', 'COMPANHIA DE AGUA', 'GAS ENCANADO'],
-    '📶 Internet': ['VIVO', 'CLARO', 'TIM ', 'OI ', 'NET SERVICOS', 'INTERNET',
+    '📶 Internet': ['VIVO', 'INT PRE-PAGO' 'CLARO', 'TIM ', 'OI ', 'NET SERVICOS', 'INTERNET',
                     'TELEFONIA'],
     '🎮 Lazer': ['NETFLIX', 'SPOTIFY', 'DISNEY', 'HBO', 'PRIME VIDEO', 'CINEMA',
                  'STEAM', 'PLAYSTATION', 'XBOX', 'INGRESSO'],
     '👕 Vestuário': ['RENNER', 'RIACHUELO', 'C&A', 'ZARA', 'CALCADOS', 'MODA'],
-    '💊 Saúde': ['FARMACIA', 'DROGA', 'DROGARIA', 'HOSPITAL', 'CLINICA',
+    '💊 Saúde': ['FARMACIA', 'NATUS FARMA' 'DROGA', 'DROGARIA', 'HOSPITAL', 'CLINICA',
                  'LABORATORIO', 'PLANO DE SAUDE', 'UNIMED', 'AMIL'],
-    '📚 Educação': ['ESCOLA', 'FACULDADE', 'UNIVERSIDADE', 'CURSO', 'MENSALIDADE',
+    '📚 Educação': ['ESCOLA','PAG BOLETO FUNDACAO INSTITUTO NACIONAL' 'FACULDADE', 'UNIVERSIDADE', 'CURSO', 'MENSALIDADE',
                     'UDEMY', 'ALURA'],
     '💼 Trabalho': ['SALARIO', 'PROVENTOS', 'PAGAMENTO SALARIAL', 'HONORARIOS',
-                    'PIX RECEBIDO', 'TED RECEBID', 'DOC RECEBID'],
+                    'PIX RECEBIDO', 'TED', 'DOC RECEBID'],
 }
 
 
@@ -136,6 +139,75 @@ def parse_ofx(conteudo):
             'tipo': tipo,
             'categoria_sugerida': sugerir_categoria(memo, tipo),
             'fitid': fitid,
+        })
+
+    return transacoes
+
+# ---------------------------------------------------------------------------
+# Parser PDF
+# ---------------------------------------------------------------------------
+# Extratos em PDF (tirados do app do banco) não têm colunas fixas como o
+# CSV — é texto solto. A extração aqui procura, em cada linha, o padrão:
+# DATA + DESCRIÇÃO + VALOR (podendo terminar em "D"/"C" de Débito/Crédito,
+# ou já vir com sinal de menos para despesa).
+PADRAO_LINHA_PDF = re.compile(
+    r'(\d{2}/\d{2}/\d{4})\s+(.+?)\s+(-?[\d.]+,\d{2})\s*([CD])?\s*$'
+)
+
+
+def parse_pdf(caminho_arquivo):
+    """Extrai transações de um extrato em PDF.
+
+    Requer a biblioteca 'pdfplumber' (adicionar ao requirements.txt).
+    Como o layout de PDF varia muito de banco para banco, essa extração é
+    uma boa aproximação — SEMPRE revise a pré-visualização antes de
+    confirmar a importação quando a origem for PDF.
+    """
+    import pdfplumber
+
+    texto_completo = ""
+    with pdfplumber.open(caminho_arquivo) as pdf:
+        for pagina in pdf.pages:
+            texto_pagina = pagina.extract_text()
+            if texto_pagina:
+                texto_completo += texto_pagina + "\n"
+
+    transacoes = []
+    for linha in texto_completo.splitlines():
+        m = PADRAO_LINHA_PDF.search(linha.strip())
+        if not m:
+            continue
+
+        data_raw, descricao, valor_raw, marcador = m.groups()
+
+        data_fmt = _parse_data_csv(data_raw)  # já aceita DD/MM/AAAA
+        if data_fmt is None:
+            continue
+
+        # Formato brasileiro "1.234,56" -> float
+        valor_texto = valor_raw.replace('.', '').replace(',', '.')
+        try:
+            valor = float(valor_texto)
+        except ValueError:
+            continue
+
+        # Define se é receita ou despesa:
+        # 1) sinal de menos no número, ou marcador 'D' -> Despesa
+        # 2) marcador 'C' ou valor positivo sem marcador -> Receita
+        if valor < 0 or marcador == 'D':
+            tipo = 'Despesa'
+        else:
+            tipo = 'Receita'
+        valor_abs = abs(valor)
+
+        descricao = descricao.strip()
+        transacoes.append({
+            'data': data_fmt,
+            'descricao': descricao,
+            'valor': valor_abs,
+            'tipo': tipo,
+            'categoria_sugerida': sugerir_categoria(descricao, tipo),
+            'fitid': None,
         })
 
     return transacoes
@@ -232,13 +304,17 @@ def parse_csv(conteudo):
 def parse_extrato(caminho_arquivo):
     """Ponto de entrada único: detecta o formato pela extensão e delega
     para o parser correto. Retorna a lista de transações interpretadas."""
+    extensao = caminho_arquivo.lower().rsplit('.', 1)[-1]
+
+    if extensao == 'pdf':
+        return parse_pdf(caminho_arquivo)
+
     with open(caminho_arquivo, 'r', encoding='utf-8', errors='ignore') as f:
         conteudo = f.read()
 
-    extensao = caminho_arquivo.lower().rsplit('.', 1)[-1]
     if extensao in ('ofx', 'qfx'):
         return parse_ofx(conteudo)
     elif extensao == 'csv':
         return parse_csv(conteudo)
     else:
-        raise ValueError(f"Formato de arquivo não suportado: .{extensao}. Use .ofx ou .csv.")
+        raise ValueError(f"Formato de arquivo não suportado: .{extensao}. Use .ofx, .csv ou .pdf.")
