@@ -1,4 +1,4 @@
-# 💰 Ket Finance
+# Salom Finance
 
 Gerenciador financeiro pessoal para desktop, 100% offline e gratuito. Feito em Python para quem quer ter controle das próprias finanças sem dependência de apps pagos, assinaturas ou dados salvos na nuvem.
 
@@ -8,11 +8,11 @@ Gerenciador financeiro pessoal para desktop, 100% offline e gratuito. Feito em P
 
 ---
 
-## 📌 Por que o Ket Finance?
+## 📌 Por que o Salom Finance?
 
 Criei o projeto pela necessidade de ter uma ferramenta simples, bonita e totalmente privada. A maioria dos apps atuais exige conta, cobra assinatura ou limita recursos básicos. 
 
-O Ket Finance roda direto no seu computador, salva tudo em um arquivo local e tem recursos focados na realidade brasileira (como compras parceladas, contas fixas, CDB e ações).
+O Salom Finance roda direto no seu computador, salva tudo em um arquivo local e tem recursos focados na realidade brasileira (como compras parceladas, contas fixas, CDB e ações).
 
 ---
 
@@ -48,8 +48,8 @@ Apenas dê um duplo clique no arquivo `setup_e_iniciar.bat`. Ele cria o ambiente
 ### Forma manual (Terminal)
 ```bash
 # Clone o repositório
-git clone [https://github.com/seu-usuario/ket-finance.git](https://github.com/seu-usuario/ket-finance.git)
-cd ket-finance
+git clone [https://github.com/seu-usuario/salom-finance.git](https://github.com/seu-usuario/salom-finance.git)
+cd salom-finance
 
 # Instale as dependências
 pip install -r requirements.txt
