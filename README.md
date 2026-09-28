@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # 💰 Salom Finance
+=======
+# Salom Finance
+>>>>>>> 5f0d742b0948b573e6b79d51fe7685e634dd2e10
 
 > **Controle financeiro pessoal moderno, bonito e 100% local.**  
 > Feito para quem quer organizar as finanças sem depender de apps na nuvem ou assinaturas.
@@ -10,11 +14,19 @@
 
 ---
 
+<<<<<<< HEAD
 ## 🧭 O que é o Salom Finance?
+=======
+## 📌 Por que o Salom Finance?
+>>>>>>> 5f0d742b0948b573e6b79d51fe7685e634dd2e10
 
 O **Salom Finance** é um sistema desktop de controle financeiro pessoal desenvolvido em Python. Ele foi criado para ser simples de usar, visualmente agradável e completamente offline — seus dados ficam salvos no seu próprio computador, sem nenhuma conta ou servidor externo.
 
+<<<<<<< HEAD
 Com ele você registra receitas e despesas, acompanha metas de economia, controla investimentos e visualiza tudo em gráficos claros — tudo em uma única tela.
+=======
+O Salom Finance roda direto no seu computador, salva tudo em um arquivo local e tem recursos focados na realidade brasileira (como compras parceladas, contas fixas, CDB e ações).
+>>>>>>> 5f0d742b0948b573e6b79d51fe7685e634dd2e10
 
 ---
 
@@ -87,10 +99,19 @@ Ele localiza o Python, cria o ambiente virtual, instala as dependências e abre 
 
 ### Opção 2 — Manual
 ```bash
+<<<<<<< HEAD
+=======
+# Clone o repositório
+git clone [https://github.com/seu-usuario/salom-finance.git](https://github.com/seu-usuario/salom-finance.git)
+cd salom-finance
+
+# Instale as dependências
+>>>>>>> 5f0d742b0948b573e6b79d51fe7685e634dd2e10
 pip install -r requirements.txt
 python main.py
 ```
 
+<<<<<<< HEAD
 ---
 
 ## 📁 Estrutura do Projeto
@@ -165,3 +186,7 @@ Contribuições são bem-vindas!
 Feito com 💜 para organizar as finanças do jeito certo.
 
 </div>
+=======
+# Execute
+python main.py
+>>>>>>> 5f0d742b0948b573e6b79d51fe7685e634dd2e10
