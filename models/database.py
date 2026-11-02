@@ -1,7 +1,9 @@
 """Gerenciador de dados SQLite"""
 import sqlite3
+import json
 from config import INITIAL_DATA
 from models.entities import Transacao, Meta, Acao
+from utils.rule_defaults import DEFAULT_RULES
 
 
 class Database:
@@ -79,11 +81,70 @@ class Database:
                     percentual INTEGER NOT NULL DEFAULT 0
                 )
             """)
+
+            # Planejamento manual de receita e destinações, separado das transações.
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS orcamento_planejado (
+                    periodo TEXT PRIMARY KEY,
+                    receita REAL NOT NULL DEFAULT 0.0,
+                    atualizado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS orcamento_planejado_itens (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    periodo TEXT NOT NULL,
+                    grupo TEXT NOT NULL CHECK (grupo IN ('fixa', 'destinacao')),
+                    categoria TEXT NOT NULL,
+                    descricao TEXT NOT NULL DEFAULT '',
+                    valor REAL NOT NULL DEFAULT 0.0,
+                    ordem INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (periodo) REFERENCES orcamento_planejado(periodo) ON DELETE CASCADE
+                )
+            """)
             
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS meta_investimentos (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     valor REAL NOT NULL DEFAULT 0.0
+                )
+            """)
+
+            
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS investimentos_movimentos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    transacao_id TEXT NOT NULL UNIQUE,
+                    investimento TEXT NOT NULL,
+                    valor REAL NOT NULL,
+                    data TEXT NOT NULL,
+                    descricao TEXT DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'pendente',
+                    FOREIGN KEY (transacao_id) REFERENCES transacoes(id) ON DELETE CASCADE
+                )
+            """)
+
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS regras (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    descricao TEXT NOT NULL DEFAULT '',
+                    campo TEXT NOT NULL DEFAULT 'descricao',
+                    operador TEXT NOT NULL DEFAULT 'contém',
+                    valor TEXT NOT NULL DEFAULT '',
+                    valor2 TEXT DEFAULT '',
+                    acao TEXT NOT NULL DEFAULT 'categorizar',
+                    categoria TEXT DEFAULT '',
+                    tipo TEXT NOT NULL DEFAULT 'Todos',
+                    ativa INTEGER NOT NULL DEFAULT 1,
+                    ordem INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS importacao_rascunhos (
+                    id TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL,
+                    atualizado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
@@ -112,6 +173,25 @@ class Database:
                     "INSERT OR IGNORE INTO metas_orcamento (categoria, percentual) VALUES (?, ?)",
                     (cat, perc)
                 )
+
+            # Regras padrão: entram apenas se a tabela ainda estiver vazia.
+            # Depois disso, o SQLite é a única fonte de verdade das regras.
+            quantidade_regras = self.conn.execute("SELECT COUNT(*) FROM regras").fetchone()[0]
+            if quantidade_regras == 0:
+                for regra in DEFAULT_RULES:
+                    self.conn.execute(
+                        """INSERT INTO regras
+                        (descricao, campo, operador, valor, valor2, acao, categoria, tipo, ativa, ordem)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
+                        (regra.get('descricao', ''), regra['campo'], regra['operador'],
+                         regra.get('valor', ''), regra.get('valor2', ''), regra['acao'],
+                         regra.get('categoria', ''), regra.get('tipo', 'Todos'), regra.get('ordem', 0))
+                    )
+
+            # Renomeia a categoria antiga sem alterar valores ou transações.
+            self.conn.execute(
+                "UPDATE transacoes SET categoria = '💰 Investimentos' WHERE categoria = '📈 Investimentos'"
+            )
 
     def _carregar(self):
         """Compatibilidade com código antigo"""
@@ -368,6 +448,199 @@ class Database:
                 "UPDATE meta_investimentos SET valor = ? WHERE id = 1",
                 (valor,)
             )
+
+    # --- Planejamento mensal de orçamento (independente dos lançamentos) ---
+    def get_orcamento_planejado(self, periodo):
+        row = self.conn.execute(
+            "SELECT receita FROM orcamento_planejado WHERE periodo = ?", (periodo,)
+        ).fetchone()
+        itens = self.conn.execute(
+            """SELECT grupo, categoria, descricao, valor, ordem
+               FROM orcamento_planejado_itens WHERE periodo = ?
+               ORDER BY grupo, ordem, id""",
+            (periodo,),
+        )
+        return {
+            "receita": float(row["receita"]) if row else 0.0,
+            "existe": row is not None,
+            "itens": [dict(item) for item in itens],
+        }
+
+    def salvar_orcamento_planejado(self, periodo, receita, itens):
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO orcamento_planejado (periodo, receita, atualizado_em)
+                   VALUES (?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(periodo) DO UPDATE SET
+                     receita = excluded.receita,
+                     atualizado_em = CURRENT_TIMESTAMP""",
+                (periodo, receita),
+            )
+            self.conn.execute(
+                "DELETE FROM orcamento_planejado_itens WHERE periodo = ?", (periodo,)
+            )
+            self.conn.executemany(
+                """INSERT INTO orcamento_planejado_itens
+                   (periodo, grupo, categoria, descricao, valor, ordem)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                [
+                    (periodo, item["grupo"], item["categoria"], item["descricao"],
+                     item["valor"], item["ordem"])
+                    for item in itens
+                ],
+            )
+
+    def limpar_orcamento_planejado(self, periodo):
+        with self.conn:
+            self.conn.execute("DELETE FROM orcamento_planejado_itens WHERE periodo = ?", (periodo,))
+            self.conn.execute("DELETE FROM orcamento_planejado WHERE periodo = ?", (periodo,))
+
+    # --- Movimentações de investimentos originadas da importação ---
+    def criar_aporte_investimento_pendente(self, transacao_id, valor, data, descricao):
+        with self.conn:
+            self.conn.execute(
+                """INSERT OR IGNORE INTO investimentos_movimentos
+                (transacao_id, investimento, valor, data, descricao, status)
+                VALUES (?, '', ?, ?, ?, 'pendente')""",
+                (transacao_id, valor, data, descricao)
+            )
+
+    def get_aportes_investimento_pendentes(self):
+        cur = self.conn.execute(
+            """SELECT * FROM investimentos_movimentos
+               WHERE status = 'pendente'
+               ORDER BY data ASC, id ASC"""
+        )
+        return [dict(row) for row in cur]
+
+    def confirmar_aportes_investimento(self, ids, investimento):
+        if not ids:
+            return 0
+        with self.conn:
+            placeholders = ",".join("?" for _ in ids)
+            rows = self.conn.execute(
+                f"""SELECT id, valor FROM investimentos_movimentos
+                    WHERE id IN ({placeholders}) AND status = 'pendente'""",
+                tuple(ids)
+            ).fetchall()
+
+            total = sum(float(r["valor"]) for r in rows)
+
+            if investimento == "CDB" and total:
+                self.conn.execute(
+                    "UPDATE cdb SET saldo = saldo + ? WHERE id = 1",
+                    (total,)
+                )
+
+            self.conn.execute(
+                f"""UPDATE investimentos_movimentos
+                    SET investimento = ?, status = 'confirmado'
+                    WHERE id IN ({placeholders}) AND status = 'pendente'""",
+                (investimento, *ids)
+            )
+            return len(rows)
+
+    def get_movimentacoes_investimentos(self):
+        cur = self.conn.execute(
+            """SELECT * FROM investimentos_movimentos
+               WHERE status = 'confirmado'
+               ORDER BY data DESC, id DESC"""
+        )
+        return [dict(row) for row in cur]
+
+    def get_total_aportes_investimento(self, investimento):
+        row = self.conn.execute(
+            """SELECT COALESCE(SUM(valor), 0) AS total
+               FROM investimentos_movimentos
+               WHERE status = 'confirmado' AND investimento = ?""",
+            (investimento,),
+        ).fetchone()
+        return float(row["total"] or 0.0)
+
+    # --- Regras de categorização ---
+    def salvar_rascunho_importacao(self, rascunho_id, payload):
+        conteudo = json.dumps(payload, ensure_ascii=False)
+        with self.conn:
+            self.conn.execute(
+                """INSERT INTO importacao_rascunhos (id, payload, atualizado_em)
+                   VALUES (?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(id) DO UPDATE SET
+                     payload = excluded.payload,
+                     atualizado_em = CURRENT_TIMESTAMP""",
+                (rascunho_id, conteudo),
+            )
+
+    def get_rascunho_importacao(self, rascunho_id):
+        row = self.conn.execute(
+            "SELECT payload FROM importacao_rascunhos WHERE id = ?", (rascunho_id,)
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            return json.loads(row["payload"])
+        except (TypeError, json.JSONDecodeError):
+            return None
+
+    def remover_rascunho_importacao(self, rascunho_id):
+        with self.conn:
+            self.conn.execute("DELETE FROM importacao_rascunhos WHERE id = ?", (rascunho_id,))
+
+    # --- Regras de categorização ---
+    def get_regras(self, apenas_ativas=False):
+        sql = "SELECT * FROM regras"
+        if apenas_ativas:
+            sql += " WHERE ativa = 1"
+        sql += " ORDER BY ordem ASC, id ASC"
+        return [dict(row) for row in self.conn.execute(sql)]
+
+    def adicionar_regra(self, regra):
+        with self.conn:
+            cursor = self.conn.execute(
+                """INSERT INTO regras
+                (descricao, campo, operador, valor, valor2, acao, categoria, tipo, ativa, ordem)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (regra.get('descricao', ''), regra.get('campo', 'descricao'),
+                 regra.get('operador', 'contém'), regra.get('valor', ''),
+                 regra.get('valor2', ''), regra.get('acao', 'categorizar'),
+                 regra.get('categoria', ''), regra.get('tipo', 'Todos'),
+                 int(bool(regra.get('ativa', True))), int(regra.get('ordem', 0)))
+            )
+            return cursor.lastrowid
+
+    def atualizar_regra(self, rid, regra):
+        permitidos = {
+            'descricao', 'campo', 'operador', 'valor', 'valor2',
+            'acao', 'categoria', 'tipo', 'ativa', 'ordem'
+        }
+        dados = {k: v for k, v in regra.items() if k in permitidos}
+        if not dados:
+            return False
+        campos = []
+        valores = []
+        for campo, valor in dados.items():
+            if campo in ('ativa',):
+                valor = int(bool(valor))
+            elif campo in ('ordem',):
+                valor = int(valor)
+            campos.append(f"{campo} = ?")
+            valores.append(valor)
+        valores.append(rid)
+        with self.conn:
+            self.conn.execute(f"UPDATE regras SET {', '.join(campos)} WHERE id = ?", valores)
+        return True
+
+    def remover_regra(self, rid):
+        with self.conn:
+            self.conn.execute("DELETE FROM regras WHERE id = ?", (rid,))
+
+    def atualizar_categoria_transacao(self, tid, categoria):
+        with self.conn:
+            self.conn.execute("UPDATE transacoes SET categoria = ? WHERE id = ?", (categoria, tid))
+
+    def reordenar_regras(self, ids):
+        with self.conn:
+            for ordem, rid in enumerate(ids, start=1):
+                self.conn.execute("UPDATE regras SET ordem = ? WHERE id = ?", (ordem, rid))
 
     def __del__(self):
         if hasattr(self, 'conn'):

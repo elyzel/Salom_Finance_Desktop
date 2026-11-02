@@ -1,4 +1,4 @@
-# 💰 Salom Finance
+# 💰 Ket Finance
 
 > **Controle financeiro pessoal moderno, bonito e 100% local.**  
 > Feito para quem quer organizar as finanças sem depender de apps na nuvem ou assinaturas.
@@ -10,11 +10,11 @@
 
 ---
 
-## 🧭 O que é o Salom Finance?
+## 🧭 O que é o Ket Finance?
 
-O **Salom Finance** é um sistema desktop de controle financeiro pessoal desenvolvido em Python. Ele foi criado para ser simples de usar, visualmente agradável e completamente offline — seus dados ficam salvos no seu próprio computador, sem nenhuma conta ou servidor externo.
+O **Ket Finance** é um sistema desktop de controle financeiro pessoal desenvolvido em Python. Ele foi criado para ser simples de usar, visualmente agradável e completamente offline — seus dados ficam salvos no seu próprio computador, sem nenhuma conta ou servidor externo.
 
-Com ele você registra receitas e despesas, acompanha metas de economia, controla investimentos e visualiza tudo em gráficos claros — tudo em uma única tela. Ele tem recursos focados na realidade brasileira, como compras parceladas, contas fixas, CDB e ações.
+Com ele você registra receitas e despesas, acompanha metas de economia, controla investimentos e visualiza tudo em gráficos claros — tudo em uma única tela.
 
 ---
 
@@ -87,12 +87,81 @@ Ele localiza o Python, cria o ambiente virtual, instala as dependências e abre 
 
 ### Opção 2 — Manual
 ```bash
-# Clone o repositório
-git clone [https://github.com/seu-usuario/salom-finance.git](https://github.com/seu-usuario/salom-finance.git)
-cd salom-finance
-
-# Instale as dependências
 pip install -r requirements.txt
-
-# Execute o programa
 python main.py
+```
+
+---
+
+## 📁 Estrutura do Projeto
+
+```
+Ket_Finance/
+├── main.py                  # Ponto de entrada
+├── config.py                # Constantes, cores e categorias
+├── requirements.txt         # Dependências
+├── setup_e_iniciar.bat      # Instalação e execução automática
+├── dados_financeiros.json   # Banco de dados local (gerado automaticamente)
+│
+├── models/                  # Camada de dados
+│   ├── database.py          # Leitura/escrita do JSON
+│   └── entities.py          # Dataclasses: Transacao, Meta, Acao
+│
+├── controllers/             # Lógica de negócio
+│   ├── transaction_controller.py
+│   ├── goal_controller.py
+│   └── investment_controller.py
+│
+├── views/                   # Interface gráfica
+│   ├── main_window.py       # Janela principal e sidebar
+│   ├── dashboard_view.py
+│   ├── entry_view.py
+│   ├── records_view.py
+│   ├── goals_view.py
+│   └── investments_view.py
+│
+└── utils/                   # Utilitários
+    ├── formatters.py
+    ├── validators.py
+    └── excel_exporter.py
+```
+
+---
+
+## 🔒 Privacidade
+
+Todos os seus dados ficam **exclusivamente no seu computador** dentro do arquivo `dados_financeiros.json`.  
+O Ket Finance não faz nenhuma conexão com a internet.
+
+> 💡 Faça backup desse arquivo regularmente para não perder seus dados.
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] Fundos Imobiliários (FIIs)
+- [ ] Gráfico de linha para fluxo de caixa mensal
+- [ ] Importação de extratos OFX/CSV
+- [ ] Criptografia do arquivo de dados
+- [ ] Tema claro
+- [ ] Instalador executável `.exe`
+
+---
+
+## 🤝 Contribuindo
+
+Contribuições são bem-vindas!
+
+1. Faça um fork do projeto
+2. Crie uma branch: `git checkout -b feature/MinhaFuncionalidade`
+3. Commit: `git commit -m '✨ Adiciona MinhaFuncionalidade'`
+4. Push: `git push origin feature/MinhaFuncionalidade`
+5. Abra um Pull Request
+
+---
+
+<div align="center">
+
+Feito com 💜 para organizar as finanças do jeito certo.
+
+</div>

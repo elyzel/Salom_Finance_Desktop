@@ -1,5 +1,6 @@
 """Controller de transações"""
 from datetime import datetime
+import calendar
 from dateutil.relativedelta import relativedelta
 from models.entities import Transacao
 from utils.formatters import data_para_datetime
@@ -15,6 +16,8 @@ class TransactionController:
         if data_dt is None:
             raise ValueError("Data inválida")
 
+        ids_criados = []
+
         if parcelado and total_parcelas > 1:
             for i in range(total_parcelas):
                 data_parcela = (data_dt + relativedelta(months=i)).strftime('%d/%m/%Y')
@@ -25,6 +28,7 @@ class TransactionController:
                     agendado=agendado, conta_destino=conta_destino
                 )
                 self.db.adicionar_transacao(t)
+                ids_criados.append(t.id)
                 if not agendado:
                     self._ajustar_saldo(t)
         else:
@@ -35,8 +39,11 @@ class TransactionController:
                 conta_destino=conta_destino
             )
             self.db.adicionar_transacao(t)
+            ids_criados.append(t.id)
             if not agendado:
                 self._ajustar_saldo(t)
+
+        return ids_criados
 
     def _ajustar_saldo(self, t: Transacao):
         if t.tipo == 'Receita':
@@ -92,45 +99,36 @@ class TransactionController:
         despesas = sum(t.valor for t in transacoes if t.tipo == 'Despesa')
         return {'receitas': receitas, 'despesas': despesas, 'saldo': receitas - despesas}
 
-    def get_resumo_ultimos_meses(self, n=6):
-        from dateutil.relativedelta import relativedelta
-        from datetime import date
-        hoje = date.today()
+    def get_resumo_ultimos_meses(self, quantidade=6):
+        """Retorna receitas e despesas mensais em ordem cronológica."""
+        hoje = datetime.today()
+        primeiro_mes = hoje.replace(day=1) - relativedelta(months=max(0, quantidade - 1))
         resultado = []
-        for i in range(n - 1, -1, -1):
-            ref = hoje - relativedelta(months=i)
-            resumo = self.get_resumo_mes(ref.month, ref.year)
-            from config import MESES
+        for i in range(quantidade):
+            mes_dt = primeiro_mes + relativedelta(months=i)
+            resumo = self.get_resumo_mes(mes_dt.month, mes_dt.year)
             resultado.append({
-                'label': f"{MESES[ref.month][:3]}/{str(ref.year)[2:]}",
-                'mes': ref.month,
-                'ano': ref.year,
-                **resumo
+                'label': mes_dt.strftime('%m/%Y'),
+                'receitas': resumo['receitas'],
+                'despesas': resumo['despesas'],
             })
         return resultado
 
     def get_movimentacao_diaria(self, mes, ano):
-        """Soma Receitas e Despesas por DIA dentro do mês/ano informado.
-        Dias sem nenhuma transação entram como 0.0 (a linha cobre o mês
-        inteiro, sem 'buracos')."""
-        import calendar
-        dias_no_mes = calendar.monthrange(ano, mes)[1]
-        receitas_dia = {d: 0.0 for d in range(1, dias_no_mes + 1)}
-        despesas_dia = {d: 0.0 for d in range(1, dias_no_mes + 1)}
-
-        for t in self.get_por_mes(mes, ano):
-            dt = data_para_datetime(t.data)
-            if not dt:
+        """Soma receitas e despesas por dia do mês selecionado."""
+        quantidade_dias = calendar.monthrange(ano, mes)[1]
+        dias = list(range(1, quantidade_dias + 1))
+        receitas = [0.0] * quantidade_dias
+        despesas = [0.0] * quantidade_dias
+        for transacao in self.get_por_mes(mes, ano):
+            try:
+                dia = int(transacao.data[:2])
+            except (TypeError, ValueError):
                 continue
-            dia = dt.day
-            if t.tipo == 'Receita':
-                receitas_dia[dia] += t.valor
-            elif t.tipo == 'Despesa':
-                despesas_dia[dia] += t.valor
-
-        dias = list(range(1, dias_no_mes + 1))
-        return {
-            'dias': dias,
-            'receitas': [receitas_dia[d] for d in dias],
-            'despesas': [despesas_dia[d] for d in dias],
-        }
+            if not 1 <= dia <= quantidade_dias:
+                continue
+            if transacao.tipo == 'Receita':
+                receitas[dia - 1] += transacao.valor
+            elif transacao.tipo == 'Despesa':
+                despesas[dia - 1] += transacao.valor
+        return {'dias': dias, 'receitas': receitas, 'despesas': despesas}

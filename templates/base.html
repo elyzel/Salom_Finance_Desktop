@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ket Finance</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: { bg: '#1a1a2e', panel: '#16213e', side: '#0f3460', accent: '#7c3aed' },
+      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] } } } }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { background: radial-gradient(1200px 600px at 80% -10%, #2a1f5c55, transparent), #1a1a2e; }
+    .card { background: linear-gradient(145deg, #16213ecc, #16213e99); border: 1px solid #ffffff12;
+            border-radius: 1rem; backdrop-filter: blur(6px); }
+    input, select { background:#0f1a33; border:1px solid #ffffff1f; border-radius:.6rem; padding:.55rem .75rem; width:100%; color:#f5f3ff; }
+    input:focus, select:focus { outline:2px solid #7c3aed; }
+      input[type=range] { padding:0; border:0; accent-color:#7c3aed; background:transparent; }
+    input[type=checkbox] { width:auto; }
+  </style>
+</head>
+<body class="text-violet-50 font-sans min-h-screen">
+  <div class="flex flex-col md:flex-row min-h-screen">
+    <aside class="md:w-60 bg-side/80 md:min-h-screen p-5 flex md:flex-col gap-2 items-center md:items-stretch overflow-x-auto">
+      <div class="text-xl font-bold mr-4 md:mr-0 md:mb-6">Salom Finance ©️</div>
+      {% for chave, rotulo, rota in [('dashboard','📊 Dashboard','dashboard'),('lancamentos','💸 Lançamentos','lancamentos'),('metas','🎯 Metas','pagina_metas'),('investimentos','📈 Investimentos','pagina_investimentos'),('orcamento','🧮 Orçamento','pagina_orcamento'),('importar','📥 Importar extrato','importar'),('regras','⚙️ Regras','pagina_regras')] %}
+      <a href="{{ url_for(rota) }}"
+         class="px-4 py-2.5 rounded-xl whitespace-nowrap transition {{ 'bg-accent font-semibold' if pagina == chave else 'hover:bg-white/10' }}">{{ rotulo }}</a>
+      {% endfor %}
+      <div class="md:mt-auto flex md:flex-col gap-2 pl-2 md:pl-0 md:pt-4 md:border-t border-white/10">
+        <a href="{{ url_for('exportar') }}" class="px-4 py-2 rounded-xl text-sm whitespace-nowrap hover:bg-white/10">📊 Exportar Excel</a>
+        <form method="post" action="{{ url_for('recalcular') }}" onsubmit="return confirm('Recalcular todos os saldos a partir das transações?')">
+          <button class="w-full text-left px-4 py-2 rounded-xl text-sm whitespace-nowrap hover:bg-white/10">🔄 Recalcular saldos</button></form>
+      </div>
+    </aside>
+    <main class="flex-1 p-5 md:p-8 max-w-7xl">
+      {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in msgs %}
+        <div class="mb-4 px-4 py-3 rounded-xl {{ 'bg-emerald-500/20 text-emerald-200' if cat == 'ok' else 'bg-red-500/20 text-red-200' }}">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+      <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <h1 class="text-2xl font-bold">{% block titulo %}{% endblock %}</h1>
+        {% if nav %}<div class="flex items-center gap-2 card px-2 py-1">
+          <a class="px-3 py-1 hover:bg-white/10 rounded-lg" href="?mes={{ nav.ant[0] }}&ano={{ nav.ant[1] }}">◀</a>
+          <span class="font-medium w-36 text-center">{{ nav.titulo }}</span>
+          <a class="px-3 py-1 hover:bg-white/10 rounded-lg" href="?mes={{ nav.prox[0] }}&ano={{ nav.prox[1] }}">▶</a>
+        </div>{% endif %}
+      </div>
+      {% block conteudo %}{% endblock %}
+    </main>
+  </div>
+<script>
+  // Aplica larguras/cores definidas por data-attributes (evita Jinja dentro de style="")
+  document.querySelectorAll('[data-w]').forEach(e => e.style.width = e.dataset.w + '%');
+  document.querySelectorAll('[data-bg]').forEach(e => e.style.background = e.dataset.bg);
+</script>
+</body>
+</html>

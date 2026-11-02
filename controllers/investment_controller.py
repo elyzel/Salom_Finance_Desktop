@@ -8,21 +8,19 @@ class InvestmentController:
 
     # --- Ações ---
     def adicionar_acao(self, ticker, quantidade, preco_medio):
-        acoes = self.db.get_acoes()
-        existente = next((a for a in acoes if a.ticker.upper() == ticker.upper()), None)
+        ticker = ticker.strip().upper()
+        existente = next((a for a in self.db.get_acoes() if a.ticker.upper() == ticker), None)
         if existente:
+            # Recalcula o preço médio ponderado e grava direto no SQLite
             total_qtd = existente.quantidade + quantidade
             novo_preco = ((existente.preco_medio * existente.quantidade) +
                           (preco_medio * quantidade)) / total_qtd
-            self.db.dados['acoes'] = [
-                {**a.to_dict(), 'quantidade': total_qtd, 'preco_medio': novo_preco}
-                if a.ticker.upper() == ticker.upper() else a.to_dict()
-                for a in acoes
-            ]
-            self.db.salvar()
+            with self.db.conn:
+                self.db.conn.execute(
+                    "UPDATE acoes SET quantidade = ?, preco_medio = ? WHERE id = ?",
+                    (total_qtd, novo_preco, existente.id))
         else:
-            a = Acao(ticker=ticker.upper(), quantidade=quantidade, preco_medio=preco_medio)
-            self.db.adicionar_acao(a)
+            self.db.adicionar_acao(Acao(ticker=ticker, quantidade=quantidade, preco_medio=preco_medio))
 
     def remover_acao(self, aid: str):
         self.db.remover_acao(aid)
@@ -39,6 +37,20 @@ class InvestmentController:
     def set_meta_investimentos(self, valor):
         self.db.set_meta_investimentos(valor)
 
+    def get_aportes_pendentes(self):
+        return self.db.get_aportes_investimento_pendentes()
+
+    def get_movimentacoes(self):
+        return self.db.get_movimentacoes_investimentos()
+
+    def get_total_aportes_bolsa(self):
+        return self.db.get_total_aportes_investimento('Bolsa de Valores')
+
+    def confirmar_aportes(self, ids, investimento):
+        if investimento not in ('CDB', 'Bolsa de Valores', 'Fundos Imobiliários'):
+            raise ValueError('Tipo de investimento inválido.')
+        return self.db.confirmar_aportes_investimento(ids, investimento)
+
     # --- CDB ---
     def get_cdb(self):
         return self.db.get_cdb()
@@ -49,8 +61,7 @@ class InvestmentController:
 
     def resgatar_cdb(self, valor):
         cdb = self.db.get_cdb()
-        novo = max(0.0, cdb['valor'] - valor)
-        self.db.set_cdb(valor=novo)
+        self.db.set_cdb(valor=max(0.0, cdb['valor'] - valor))
 
     def set_meta_cdb(self, meta):
         self.db.set_cdb(meta=meta)

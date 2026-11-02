@@ -36,12 +36,15 @@ CATEGORIES = {
     '💳 Cartão de Crédito': '💳',
     '💡 Utilidades': '💡',
     '📶 Internet': '📶',
+    '💰 Investimentos': '💰',
     '🎮 Lazer': '🎮',
     '👕 Vestuário': '👕',
     '💊 Saúde': '💊',
     '📚 Educação': '📚',
     '👨‍👩‍👧 Família': '👨‍👩‍👧',
     '💼 Trabalho': '💼',
+    '💈 Corte de Cabelo': '💈',
+    '💝 Esposa': '💝',
     '📦 Outros': '📦'
 }
 
@@ -69,6 +72,8 @@ CATEGORY_COLORS = {
     '📚 Educação':     '#14b8a6',
     '👨‍👩‍👧 Família':      '#a855f7',
     '💼 Trabalho':     '#84cc16',
+    '💈 Corte de Cabelo': '#f472b6',
+    '💝 Esposa':      '#fb7185',
     '📦 Outros':       '#64748b',
 }
 TRANSACTION_TYPES = ['Receita', 'Despesa', 'Transferência']
@@ -102,6 +107,7 @@ INITIAL_DATA = {
         'Educação': 10,
         'Reserva de Emergência': 20,
         'Investimentos': 20,
+        'Saúde': 0,
         'Lazer': 10,
         'Viagem': 10
     }

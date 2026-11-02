@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+{% block titulo %}Regras{% endblock %}
+{% block conteudo %}
+<div class="space-y-4">
+  <section class="card p-5">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 class="font-semibold text-lg">⚙️ Regras de categorização</h2>
+        <p class="text-sm text-violet-200/70 mt-1 max-w-3xl">As regras são executadas pelo número, de cima para baixo. A primeira regra ativa que corresponder será aplicada.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button id="nova" type="button" class="bg-accent hover:bg-violet-500 rounded-xl px-4 py-2 font-semibold">＋ Nova regra</button>
+        <button id="aplicar" type="button" class="bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2">↻ Aplicar às antigas</button>
+        <a href="{{ url_for('exportar_regras') }}" class="bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2">⬇ Exportar</a>
+        <form method="post" action="{{ url_for('importar_regras_xlsx') }}" enctype="multipart/form-data">
+          <label class="inline-block bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2 cursor-pointer">⬆ Importar
+            <input id="arquivo-regras" type="file" name="arquivo" accept=".xlsx" class="hidden">
+          </label><button id="enviar-regras" type="submit" class="hidden">Enviar</button>
+        </form>
+      </div>
+    </div>
+    <div id="mensagem" role="status" class="hidden mt-4 rounded-xl px-4 py-3 text-sm"></div>
+  </section>
+
+  <section class="card p-3 overflow-x-auto">
+    <table class="w-full min-w-[950px] text-sm">
+      <thead class="text-left text-violet-200/60"><tr>
+        <th class="p-3">Nº</th><th class="p-3">Ativa</th><th class="p-3">Regra</th><th class="p-3">Condição</th><th class="p-3">Ação</th><th class="p-3">Operações</th>
+      </tr></thead>
+      <tbody id="linhas-regras"><tr><td colspan="6" class="p-5 text-center text-violet-200/60">Carregando regras…</td></tr></tbody>
+    </table>
+  </section>
+  <p class="text-xs text-violet-200/50 px-1">Use Editar para alterar todos os campos no popup. O número define a prioridade e não pode se repetir. Testar mostra quantos lançamentos antigos correspondem à regra.</p>
+</div>
+
+<dialog id="modal-regra" class="w-[min(95vw,38rem)] rounded-2xl bg-[#17152d] text-violet-50 p-0 shadow-2xl backdrop:bg-black/70">
+  <form id="form-regra" class="p-6 space-y-4">
+    <div class="flex items-center justify-between gap-3">
+      <h2 id="titulo-modal" class="text-xl font-bold">Nova regra</h2>
+      <button id="fechar-modal" type="button" aria-label="Fechar" class="rounded-lg px-3 py-1 hover:bg-white/10">✕</button>
+    </div>
+    <input type="hidden" id="regra-id">
+    <div class="grid sm:grid-cols-2 gap-4">
+      <label class="text-sm">Número da regra / prioridade
+        <input id="numero" type="number" min="1" step="1" required class="mt-1" placeholder="1">
+      </label>
+      <label class="flex items-center gap-3 self-end rounded-xl bg-white/5 p-3 text-sm">
+        <input id="ativa" type="checkbox" checked><span>Regra ativa</span>
+      </label>
+    </div>
+    <label class="block text-sm">Nome da regra
+      <input id="descricao" type="text" maxlength="120" required class="mt-1" placeholder="Ex.: Netflix → Lazer">
+    </label>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <label class="text-sm">Aplicar em qual coluna?
+        <select id="campo" class="mt-1">
+          <option value="descricao">Descrição</option><option value="valor">Valor</option><option value="tipo">Tipo</option><option value="conta">Conta</option>
+        </select>
+      </label>
+      <label class="text-sm">Tipo de condição
+        <select id="operador" class="mt-1"></select>
+      </label>
+    </div>
+    <label class="block text-sm">Valor alvo
+      <input id="valor" type="text" required class="mt-1" placeholder="Texto, valor ou tipo que será comparado">
+    </label>
+    <label id="grupo-valor2" class="hidden text-sm">Segundo valor (para condição “entre”)
+      <input id="valor2" type="text" class="mt-1">
+    </label>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <label class="text-sm">Então fazer
+        <select id="acao" class="mt-1"><option value="categorizar">Categorizar</option><option value="ignorar">Ignorar lançamento</option><option value="desmarcar">Deixar desmarcado</option></select>
+      </label>
+      <label id="grupo-categoria" class="text-sm">Categoria
+        <select id="categoria" class="mt-1">{% for c in categorias %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+      </label>
+    </div>
+    <label class="block text-sm">Restringir ao tipo de lançamento
+      <select id="tipo-transacao" class="mt-1"><option value="Todos">Todos</option><option value="Receita">Receita</option><option value="Despesa">Despesa</option></select>
+    </label>
+    <div id="erro-modal" class="hidden rounded-lg bg-red-500/15 p-3 text-sm text-red-200"></div>
+    <div class="flex justify-end gap-2 pt-2">
+      <button id="cancelar-modal" type="button" class="rounded-xl bg-white/10 px-4 py-2">Cancelar</button>
+      <button id="salvar-regra" type="submit" class="rounded-xl bg-accent px-5 py-2 font-semibold">Salvar regra</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const regrasUrl = {{ url_for('api_regras')|tojson }};
+const novaUrl = {{ url_for('api_regra_nova')|tojson }};
+const itemUrl = {{ url_for('api_regra_item', rid=0)|tojson }}.replace(/0$/, '');
+const testarUrl = {{ url_for('api_testar_regra')|tojson }};
+const reordenarUrl = {{ url_for('api_reordenar_regras')|tojson }};
+const aplicarUrl = {{ url_for('api_aplicar_regras_historico')|tojson }};
+const chaveRascunhoModal = 'ket_finance_regra_modal_rascunho';
+const condTexto = {{ (['contém','não contém','começa com','termina com','igual a','contém qualquer um de'] )|tojson }};
+const condNumero = {{ (['igual a','maior que','maior ou igual a','menor que','menor ou igual a','entre'])|tojson }};
+const condTipo = {{ (['é','não é'])|tojson }};
+const prefill = {{ prefill|tojson }};
+const modal = document.getElementById('modal-regra');
+const form = document.getElementById('form-regra');
+let regrasCache = [];
+let restaurandoRascunho = false;
+
+function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function mensagem(txt, erro=false) {
+  const e=document.getElementById('mensagem'); e.textContent=txt;
+  e.className='mt-4 rounded-xl px-4 py-3 text-sm '+(erro?'bg-red-500/20 text-red-200':'bg-emerald-500/20 text-emerald-200');
+  clearTimeout(mensagem.timer); mensagem.timer=setTimeout(()=>e.classList.add('hidden'),5000);
+}
+function condicao(r) {
+  let campo={descricao:'Descrição',valor:'Valor',tipo:'Tipo',conta:'Conta'}[r.campo] || r.campo;
+  let alvo=r.operador==='entre' ? `${r.valor} e ${r.valor2}` : r.valor;
+  return `${campo} ${r.operador} ${alvo}`;
+}
+function destino(r) {
+  if (r.acao==='ignorar') return 'Ignorar';
+  if (r.acao==='desmarcar') return 'Desmarcar';
+  return r.categoria || '📦 Outros';
+}
+function desenhar() {
+  const corpo=document.getElementById('linhas-regras');
+  if (!regrasCache.length) { corpo.innerHTML='<tr><td colspan="6" class="p-5 text-center text-violet-200/60">Nenhuma regra cadastrada. Clique em “Nova regra”.</td></tr>'; return; }
+  corpo.innerHTML=regrasCache.map(r=>`<tr class="border-t border-white/10 hover:bg-white/[.03]">
+    <td class="p-3 font-semibold">${esc(r.ordem)}</td><td class="p-3">${Number(r.ativa)?'✅':'—'}</td>
+    <td class="p-3">${esc(r.descricao)}</td><td class="p-3">${esc(condicao(r))}</td><td class="p-3">${esc(destino(r))}</td>
+    <td class="p-3 whitespace-nowrap"><button data-op="subir" data-id="${r.id}" title="Aumentar prioridade" class="rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20">↑</button><button data-op="descer" data-id="${r.id}" title="Diminuir prioridade" class="ml-1 rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20">↓</button>
+    <button data-op="editar" data-id="${r.id}" class="ml-1 rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20">✏️ Editar</button>
+    <button data-op="testar" data-id="${r.id}" class="ml-1 rounded-lg bg-white/10 px-2 py-1 hover:bg-white/20">🧪 Testar</button>
+    <button data-op="excluir" data-id="${r.id}" class="ml-1 rounded-lg bg-red-500/10 px-2 py-1 text-red-200 hover:bg-red-500/20">🗑️</button></td></tr>`).join('');
+}
+async function carregar() {
+  const r=await fetch(regrasUrl); regrasCache=await r.json(); regrasCache.sort((a,b)=>Number(a.ordem)-Number(b.ordem)||Number(a.id)-Number(b.id)); desenhar();
+}
+function atualizarOperadores(selecionado='') {
+  const campo=document.getElementById('campo').value;
+  const lista=campo==='valor'?condNumero:(campo==='tipo'?condTipo:condTexto);
+  const select=document.getElementById('operador');
+  select.innerHTML=lista.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  if (lista.includes(selecionado)) select.value=selecionado;
+  document.getElementById('grupo-valor2').classList.toggle('hidden',select.value!=='entre');
+}
+function novaRegra() {
+  form.reset(); document.getElementById('regra-id').value='';
+  document.getElementById('titulo-modal').textContent='Nova regra';
+  document.getElementById('salvar-regra').textContent='Salvar regra';
+  document.getElementById('ativa').checked=true;
+  document.getElementById('numero').value=String(Math.max(0,...regrasCache.map(r=>Number(r.ordem)||0))+1);
+  document.getElementById('categoria').value='📦 Outros';
+  document.getElementById('tipo-transacao').value=prefill.tipo||'Todos';
+  if (prefill.descricao) { document.getElementById('descricao').value='Regra para '+prefill.descricao; document.getElementById('valor').value=prefill.descricao; }
+  else if (prefill.valor) { document.getElementById('campo').value='valor'; document.getElementById('operador').dataset.pending='igual a'; document.getElementById('valor').value=prefill.valor; }
+  atualizarOperadores(document.getElementById('operador').dataset.pending||'contém');
+  delete document.getElementById('operador').dataset.pending;
+  document.getElementById('erro-modal').classList.add('hidden'); modal.showModal(); guardarRascunhoModal();
+}
+function editarRegra(r) {
+  form.reset(); document.getElementById('regra-id').value=r.id;
+  document.getElementById('titulo-modal').textContent='Editar regra';
+  document.getElementById('salvar-regra').textContent='Salvar alterações';
+  document.getElementById('numero').value=r.ordem; document.getElementById('ativa').checked=!!Number(r.ativa);
+  document.getElementById('descricao').value=r.descricao||''; document.getElementById('campo').value=r.campo;
+  atualizarOperadores(r.operador); document.getElementById('valor').value=r.valor||'';
+  document.getElementById('valor2').value=r.valor2||''; document.getElementById('acao').value=r.acao;
+  document.getElementById('categoria').value=r.categoria||'📦 Outros'; document.getElementById('tipo-transacao').value=r.tipo||'Todos';
+  document.getElementById('erro-modal').classList.add('hidden'); modal.showModal(); guardarRascunhoModal();
+}
+function dadosFormularioRegra() {
+  return {id:document.getElementById('regra-id').value||null,ordem:document.getElementById('numero').value,
+    ativa:document.getElementById('ativa').checked,descricao:document.getElementById('descricao').value,
+    campo:document.getElementById('campo').value,operador:document.getElementById('operador').value,
+    valor:document.getElementById('valor').value,valor2:document.getElementById('valor2').value,
+    acao:document.getElementById('acao').value,categoria:document.getElementById('categoria').value,
+    tipo:document.getElementById('tipo-transacao').value};
+}
+function guardarRascunhoModal() {
+  if(!modal.open||restaurandoRascunho)return;
+  try { sessionStorage.setItem(chaveRascunhoModal,JSON.stringify(dadosFormularioRegra())); } catch(_e) {}
+}
+function restaurarRascunhoModal() {
+  let d; try { d=JSON.parse(sessionStorage.getItem(chaveRascunhoModal)||'null'); } catch(_e) { return; }
+  if(!d)return;
+  restaurandoRascunho=true;
+  if(d.id) {
+    const existente=regrasCache.find(r=>String(r.id)===String(d.id));
+    if(existente) editarRegra(existente); else { novaRegra(); document.getElementById('regra-id').value=''; document.getElementById('titulo-modal').textContent='Nova regra (rascunho recuperado)'; }
+  } else novaRegra();
+  if(d.ordem)document.getElementById('numero').value=d.ordem;
+  document.getElementById('ativa').checked=!!d.ativa;
+  document.getElementById('descricao').value=d.descricao||'';
+  document.getElementById('campo').value=d.campo||'descricao'; atualizarOperadores(d.operador||'contém');
+  document.getElementById('valor').value=d.valor||''; document.getElementById('valor2').value=d.valor2||'';
+  document.getElementById('acao').value=d.acao||'categorizar';
+  document.getElementById('categoria').value=d.categoria||'📦 Outros';
+  document.getElementById('tipo-transacao').value=d.tipo||'Todos'; atualizarCampos(true);
+  restaurandoRascunho=false; guardarRascunhoModal();
+  mensagem('Rascunho do formulário restaurado nesta aba.');
+}
+function atualizarCampos(preservarOperador=false) {
+  atualizarOperadores(preservarOperador?document.getElementById('operador').value:'');
+  document.getElementById('grupo-categoria').classList.toggle('hidden',document.getElementById('acao').value!=='categorizar');
+}
+document.getElementById('campo').addEventListener('change',()=>atualizarCampos());
+document.getElementById('operador').addEventListener('change',e=>document.getElementById('grupo-valor2').classList.toggle('hidden',e.target.value!=='entre'));
+document.getElementById('acao').addEventListener('change',()=>document.getElementById('grupo-categoria').classList.toggle('hidden',document.getElementById('acao').value!=='categorizar'));
+document.getElementById('nova').addEventListener('click',novaRegra);
+document.getElementById('fechar-modal').addEventListener('click',()=>modal.close());
+document.getElementById('cancelar-modal').addEventListener('click',()=>modal.close());
+modal.addEventListener('cancel',()=>sessionStorage.removeItem(chaveRascunhoModal));
+form.addEventListener('input',guardarRascunhoModal);
+form.addEventListener('change',guardarRascunhoModal);
+document.getElementById('fechar-modal').addEventListener('click',()=>sessionStorage.removeItem(chaveRascunhoModal));
+document.getElementById('cancelar-modal').addEventListener('click',()=>sessionStorage.removeItem(chaveRascunhoModal));
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const id=document.getElementById('regra-id').value;
+  const dados={ordem:Number(document.getElementById('numero').value),ativa:document.getElementById('ativa').checked,
+    descricao:document.getElementById('descricao').value,campo:document.getElementById('campo').value,
+    operador:document.getElementById('operador').value,valor:document.getElementById('valor').value,
+    valor2:document.getElementById('valor2').value,acao:document.getElementById('acao').value,
+    categoria:document.getElementById('categoria').value,tipo:document.getElementById('tipo-transacao').value};
+  const erro=document.getElementById('erro-modal');
+  try { const resp=await fetch(id?itemUrl+id:novaUrl,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(dados)});
+    const body=await resp.json(); if(!resp.ok) throw new Error(body.erro||'Não foi possível salvar a regra.');
+    modal.close(); sessionStorage.removeItem(chaveRascunhoModal); mensagem(id?'Regra atualizada.':'Regra criada.'); await carregar();
+  } catch(err) { erro.textContent=err.message; erro.classList.remove('hidden'); }
+});
+document.getElementById('linhas-regras').addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-op]'); if(!b)return;
+  const r=regrasCache.find(x=>String(x.id)===b.dataset.id); if(!r)return;
+  if(b.dataset.op==='editar') editarRegra(r);
+  if(b.dataset.op==='subir'||b.dataset.op==='descer') {
+    const atual=regrasCache.findIndex(x=>String(x.id)===b.dataset.id);
+    const destino=atual+(b.dataset.op==='subir'?-1:1);
+    if(destino<0||destino>=regrasCache.length)return;
+    const ids=regrasCache.map(x=>x.id); [ids[atual],ids[destino]]=[ids[destino],ids[atual]];
+    const resp=await fetch(reordenarUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
+    const x=await resp.json(); if(!resp.ok){mensagem(x.erro||'Não foi possível alterar a prioridade.',true);return;}
+    await carregar(); mensagem('Prioridade atualizada.');
+  }
+  if(b.dataset.op==='excluir'&&confirm(`Excluir a regra “${r.descricao}”?`)) {
+    const resp=await fetch(itemUrl+r.id,{method:'DELETE'}); if(resp.ok){mensagem('Regra excluída.');carregar();}
+  }
+  if(b.dataset.op==='testar') {
+    try { const resp=await fetch(testarUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)}); const x=await resp.json(); if(!resp.ok)throw new Error(x.erro); mensagem(`Esta regra corresponderia a ${x.total} lançamento(s) histórico(s).`); }
+    catch(err){mensagem(err.message,true);}
+  }
+});
+document.getElementById('aplicar').addEventListener('click',async()=>{
+  if(!confirm('Reaplicar as regras ativas às categorias dos lançamentos antigos?'))return;
+  const r=await fetch(aplicarUrl,{method:'POST'}); const x=await r.json(); mensagem(`${x.alteradas} lançamento(s) atualizado(s).`);
+});
+document.getElementById('arquivo-regras').addEventListener('change',function(){if(this.files.length)document.getElementById('enviar-regras').click();});
+atualizarCampos(); carregar().then(restaurarRascunhoModal);
+</script>
+{% endblock %}

@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block titulo %}Orçamento mensal{% endblock %}
+{% block conteudo %}
+<div class="space-y-4">
+  <section class="card flex flex-wrap items-start justify-between gap-4 p-5">
+    <div>
+      <h2 class="text-lg font-semibold">Orçamento de {{ nav.titulo }}</h2>
+      <p class="mt-1 max-w-4xl text-sm text-violet-200/70">Planeje sua receita, contas fixas e o destino do valor que sobra. Este planejamento é separado dos lançamentos e não altera os saldos das contas.</p>
+      {% if not planejamento_salvo %}<p class="mt-2 text-sm text-amber-200">Nenhum orçamento foi registrado para este mês.</p>{% endif %}
+    </div>
+    <button type="button" id="abrir-formulario" class="rounded-xl bg-accent px-5 py-2.5 font-semibold hover:bg-violet-500">{{ 'Editar Orçamento' if planejamento_salvo else 'Registrar Orçamento' }}</button>
+  </section>
+
+  <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div class="card p-5"><div class="text-sm text-violet-200/70">Receita total</div><div class="mt-1 text-2xl font-bold text-emerald-300">{{ receita|brl }}</div></div>
+    <div class="card p-5"><div class="text-sm text-violet-200/70">Contas fixas</div><div class="mt-1 text-2xl font-bold">{{ total_fixas|brl }}</div></div>
+    <div class="card p-5"><div class="text-sm text-violet-200/70">Líquido após as contas</div><div class="mt-1 text-2xl font-bold">{{ liquido_apos_fixas|brl }}</div></div>
+    <div class="card p-5"><div class="text-sm text-violet-200/70">Separado para destinações</div><div class="mt-1 text-2xl font-bold">{{ total_destinacoes|brl }}</div></div>
+    <div class="card p-5"><div class="text-sm text-violet-200/70">Dinheiro não destinado</div><div class="mt-1 text-2xl font-bold {{ 'text-red-300' if disponivel < 0 else 'text-emerald-300' }}">{{ disponivel|brl }}</div></div>
+  </section>
+  {% if disponivel < 0 %}<div class="rounded-xl bg-amber-500/15 p-4 text-sm text-amber-200">As contas fixas e destinações excedem a receita planejada em {{ (0-disponivel)|brl }}.</div>{% endif %}
+
+  <section class="card p-5">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div><h2 class="text-lg font-semibold">Visão do planejamento</h2><p id="descricao-grafico" class="mt-1 text-xs text-violet-200/60">Despesas fixas divididas pelo total das contas fixas.</p></div>
+      <div class="flex gap-2" role="group" aria-label="Tipo de gráfico">
+        <button type="button" data-modo-grafico="despesas" aria-pressed="true" class="modo-grafico rounded-xl bg-accent px-4 py-2 text-sm font-semibold">Despesas</button>
+        <button type="button" data-modo-grafico="distribuicao" aria-pressed="false" class="modo-grafico rounded-xl bg-white/10 px-4 py-2 text-sm hover:bg-white/20">Distribuição</button>
+      </div>
+    </div>
+    <div class="mx-auto mt-4 h-72 max-w-xl"><canvas id="grafico-orcamento" aria-label="Gráfico de pizza do orçamento"></canvas></div>
+    <p id="status-grafico" class="mt-2 text-center text-sm text-violet-200/60"></p>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="mb-3 text-lg font-semibold">Resumo por categoria</h2>
+    <div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead class="text-left text-violet-200/60"><tr><th class="py-2">Categoria</th><th class="text-right">Valor planejado</th><th class="text-right">% da receita</th></tr></thead>
+      <tbody id="resumo-categorias">
+      {% if totais_categoria.values()|sum > 0 %}
+        {% for categoria, total in totais_categoria.items() if total > 0 %}
+          <tr class="border-t border-white/10"><td class="py-2">{{ categoria }}</td><td class="text-right">{{ total|brl }}</td><td class="text-right">{{ '%.1f'|format((total / receita * 100) if receita else 0) }}%</td></tr>
+        {% endfor %}
+      {% else %}<tr><td colspan="3" class="py-4 text-center text-violet-200/50">Registre um orçamento para ver o resumo por categoria.</td></tr>{% endif %}
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="grid gap-4 lg:grid-cols-2">
+    <div class="card p-5"><h2 class="mb-3 font-semibold">Contas fixas registradas</h2>
+      <div class="space-y-2 text-sm">
+      {% for item in itens_plano if item.grupo == 'fixa' %}<div class="flex justify-between gap-3 border-b border-white/10 pb-2"><span>{{ item.categoria }} · {{ item.descricao }}</span><b class="whitespace-nowrap">{{ item.valor|brl }}</b></div>
+      {% else %}<p class="text-violet-200/50">Nenhuma conta fixa registrada.</p>{% endfor %}
+      </div>
+    </div>
+    <div class="card p-5"><h2 class="mb-3 font-semibold">Destinações registradas</h2>
+      <div class="space-y-2 text-sm">
+      {% for item in itens_plano if item.grupo == 'destinacao' %}<div class="flex justify-between gap-3 border-b border-white/10 pb-2"><span>{{ item.categoria }}{% if item.descricao and item.descricao != item.categoria %} · {{ item.descricao }}{% endif %}</span><b class="whitespace-nowrap">{{ item.valor|brl }}</b></div>
+      {% else %}<p class="text-violet-200/50">Nenhuma destinação registrada.</p>{% endfor %}
+      </div>
+    </div>
+  </section>
+</div>
+
+<dialog id="modal-orcamento" class="max-h-[92vh] w-[min(96vw,70rem)] overflow-y-auto rounded-2xl bg-[#17152d] p-0 text-violet-50 shadow-2xl backdrop:bg-black/70">
+<div class="p-5 sm:p-7">
+  <div class="mb-5 flex items-center justify-between gap-3"><div><h2 class="text-xl font-bold">{{ 'Editar Orçamento' if planejamento_salvo else 'Registrar Orçamento' }} — {{ nav.titulo }}</h2><p class="mt-1 text-xs text-violet-200/60">Os valores abaixo são um plano mensal e não criam lançamentos.</p></div><button type="button" id="fechar-formulario" class="rounded-lg px-3 py-1 hover:bg-white/10" aria-label="Fechar">✕</button></div>
+  {% if erro %}<div class="mb-4 rounded-xl bg-red-500/15 p-3 text-sm text-red-200">{{ erro }}</div>{% endif %}
+  <p id="status-plano" class="mb-4 text-xs text-violet-200/60">Rascunho salvo nesta aba até salvar ou cancelar.</p>
+  <form method="post" id="form-orcamento" class="space-y-4">
+    <input type="hidden" name="mes_ref" value="{{ mes }}"><input type="hidden" name="ano_ref" value="{{ ano }}">
+    <section class="rounded-xl bg-white/5 p-4"><label class="block max-w-sm text-sm font-medium">Receita total esperada no mês<input id="receita" name="receita" type="text" inputmode="decimal" required value="{{ receita_input }}" placeholder="Ex.: 4.200,00" class="mt-2 text-lg"></label></section>
+    <section class="rounded-xl bg-white/5 p-4">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-semibold">Contas e despesas fixas</h3><p class="text-xs text-violet-200/60">Adicione cada conta separadamente.</p></div><button type="button" id="adicionar-fixa" class="rounded-xl bg-white/10 px-4 py-2 hover:bg-white/20">＋ Adicionar conta</button></div>
+      <div class="overflow-x-auto"><table class="w-full min-w-[620px] text-sm"><thead class="text-left text-violet-200/60"><tr><th class="py-2">Categoria</th><th>Conta / descrição</th><th class="text-right">Valor</th><th></th></tr></thead><tbody id="itens-fixos">
+      {% for item in fixas %}<tr class="item-fixo border-t border-white/10"><td class="py-2"><select name="fixa_categoria">{% for c in categorias_despesas %}<option value="{{ c }}" {{ 'selected' if item.categoria == c else '' }}>{{ c }}</option>{% endfor %}</select></td><td><input name="fixa_descricao" value="{{ item.descricao }}" placeholder="Ex.: Aluguel e água"></td><td><input name="fixa_valor" value="{{ item.valor }}" placeholder="0,00" inputmode="decimal" class="text-right"></td><td class="text-right"><button type="button" class="remover-linha rounded-lg px-3 py-2 text-red-200 hover:bg-red-500/10" title="Remover">✕</button></td></tr>{% endfor %}
+      </tbody></table></div><div class="mt-3 flex justify-between text-sm"><span>Total das contas fixas</span><b id="total-fixas">{{ total_fixas|brl }}</b></div>
+    </section>
+    <section class="rounded-xl bg-white/5 p-4">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 class="font-semibold">Distribuição do valor que sobra</h3><p class="text-xs text-violet-200/60">Separe o líquido para reserva, investimentos, lazer, viagem ou outras destinações.</p></div><button type="button" id="adicionar-destinacao" class="rounded-xl bg-white/10 px-4 py-2 hover:bg-white/20">＋ Adicionar destinação</button></div>
+      <div class="overflow-x-auto"><table class="w-full min-w-[620px] text-sm"><thead class="text-left text-violet-200/60"><tr><th class="py-2">Destinação</th><th>Descrição</th><th class="text-right">Valor</th><th></th></tr></thead><tbody id="itens-destinacoes">
+      {% for item in destinacoes %}<tr class="item-destinacao border-t border-white/10"><td class="py-2"><select name="dest_categoria">{% for c in categorias_destinacoes %}<option value="{{ c }}" {{ 'selected' if item.categoria == c else '' }}>{{ c }}</option>{% endfor %}</select></td><td><input name="dest_descricao" value="{{ item.descricao }}" placeholder="Ex.: Separação do mês"></td><td><input name="dest_valor" value="{{ item.valor }}" placeholder="0,00" inputmode="decimal" class="text-right"></td><td class="text-right"><button type="button" class="remover-linha rounded-lg px-3 py-2 text-red-200 hover:bg-red-500/10" title="Remover">✕</button></td></tr>{% endfor %}
+      </tbody></table></div><div class="mt-3 flex justify-between text-sm"><span>Total destinado</span><b id="total-destinacoes">{{ total_destinacoes|brl }}</b></div>
+    </section>
+    <section class="grid gap-3 sm:grid-cols-3"><div class="rounded-xl bg-white/5 p-4"><div class="text-xs text-violet-200/70">Líquido após contas fixas</div><div id="liquido-fixas" class="mt-1 text-xl font-bold">{{ liquido_apos_fixas|brl }}</div></div><div class="rounded-xl bg-white/5 p-4"><div class="text-xs text-violet-200/70">Separado para destinações</div><div id="resumo-destinacoes" class="mt-1 text-xl font-bold">{{ total_destinacoes|brl }}</div></div><div class="rounded-xl bg-white/5 p-4"><div class="text-xs text-violet-200/70">Dinheiro não destinado</div><div id="dinheiro-restante" class="mt-1 text-xl font-bold">{{ disponivel|brl }}</div></div></section>
+    <div id="aviso-orcamento" class="hidden rounded-xl bg-amber-500/15 p-3 text-sm text-amber-200">As contas e destinações ultrapassam a receita planejada. Você pode salvar e revisar os valores.</div>
+    <div class="flex flex-wrap justify-end gap-2 border-t border-white/10 pt-4"><button type="button" id="cancelar-formulario" class="rounded-xl bg-white/10 px-4 py-2 hover:bg-white/20">Cancelar</button>{% if planejamento_salvo %}<button id="apagar-plano" type="submit" formaction="{{ url_for('orcamento_resetar') }}" formnovalidate class="rounded-xl bg-red-500/10 px-4 py-2 text-red-200 hover:bg-red-500/20">Apagar orçamento</button>{% endif %}<button type="submit" class="rounded-xl bg-accent px-5 py-2 font-semibold hover:bg-violet-500">Salvar orçamento</button></div>
+  </form>
+</div>
+</dialog>
+
+<template id="modelo-fixa"><tr class="item-fixo border-t border-white/10"><td class="py-2"><select name="fixa_categoria">{% for c in categorias_despesas %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></td><td><input name="fixa_descricao" placeholder="Ex.: Conta mensal"></td><td><input name="fixa_valor" placeholder="0,00" inputmode="decimal" class="text-right"></td><td class="text-right"><button type="button" class="remover-linha rounded-lg px-3 py-2 text-red-200">✕</button></td></tr></template>
+<template id="modelo-destinacao"><tr class="item-destinacao border-t border-white/10"><td class="py-2"><select name="dest_categoria">{% for c in categorias_destinacoes %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></td><td><input name="dest_descricao" placeholder="Ex.: Separação do mês"></td><td><input name="dest_valor" placeholder="0,00" inputmode="decimal" class="text-right"></td><td class="text-right"><button type="button" class="remover-linha rounded-lg px-3 py-2 text-red-200">✕</button></td></tr></template>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const categoriasFixas={{ categorias_despesas|tojson }};
+const categoriasDestinacoes={{ categorias_destinacoes|tojson }};
+const nomesCategoriasResumo=[...new Set([...categoriasFixas,...categoriasDestinacoes])];
+const corPorCategoria={'Reserva de Emergência':'#06b6d4','Investimentos':'#8b5cf6','Lazer':'#ec4899','Viagem':'#10b981','Ainda disponível':'#64748b'};
+const coresGrafico=['#f59e0b','#3b82f6','#10b981','#ec4899','#06b6d4','#ef4444','#8b5cf6','#f97316','#84cc16','#14b8a6','#a855f7','#fb7185'];
+const chaveRascunho=`ket_finance_orcamento_{{ ano }}_{{ '%02d'|format(mes) }}`;
+const limparRascunhoAoCarregar={{ 'true' if limpar_rascunho else 'false' }};
+const erroFormulario={{ 'true' if erro else 'false' }};
+const modal=document.getElementById('modal-orcamento');
+const form=document.getElementById('form-orcamento');
+const planoInicial={{ {'receita':receita_input,'fixas':fixas,'destinacoes':destinacoes}|tojson }};
+const brl=valor=>'R$ '+Number(valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function parseValor(texto){texto=String(texto||'').trim().replace(/R\$/g,'').replace(/\s/g,'');if(!texto)return 0;if(texto.includes(',')&&texto.includes('.'))texto=texto.lastIndexOf(',')>texto.lastIndexOf('.')?texto.replace(/\./g,'').replace(',','.'):texto.replace(/,/g,'');else if(texto.includes(','))texto=texto.replace(',','.');else if(/^[0-9]{1,3}(\.[0-9]{3})+$/.test(texto))texto=texto.replace(/\./g,'');const n=Number(texto);return Number.isFinite(n)&&n>=0?n:0;}
+function lerLinhas(classe,prefixo){return [...document.querySelectorAll(`.${classe}`)].map(l=>({categoria:l.querySelector(`[name="${prefixo}_categoria"]`).value,descricao:l.querySelector(`[name="${prefixo}_descricao"]`).value,valor:l.querySelector(`[name="${prefixo}_valor"]`).value}));}
+function atualizarGrafico(linhasFixas,linhasDest,totalFixas,totalDest,liquido){
+  const status=document.getElementById('status-grafico'),descricao=document.getElementById('descricao-grafico'), totais={};
+  if(modoGrafico==='despesas'){
+    for(const l of linhasFixas){const c=l.querySelector('[name="fixa_categoria"]').value;totais[c]=(totais[c]||0)+parseValor(l.querySelector('[name="fixa_valor"]').value);}
+    descricao.textContent='Cada fatia mostra uma categoria como parte do total das contas fixas.';
+    status.textContent=totalFixas>0?`Total de despesas fixas: ${brl(totalFixas)}.`:'Registre o orçamento para ver a divisão das despesas fixas.';
+  } else {
+    for(const l of linhasDest){const c=l.querySelector('[name="dest_categoria"]').value;totais[c]=(totais[c]||0)+parseValor(l.querySelector('[name="dest_valor"]').value);}
+    descricao.textContent='Cada fatia representa uma destinação do valor líquido após as contas fixas.';
+    if(liquido<=0)status.textContent='Não há valor líquido positivo para distribuir depois das contas fixas.';
+    else if(totalDest>liquido+0.005)status.textContent=`As destinações (${brl(totalDest)}) ultrapassam o líquido disponível (${brl(liquido)}); ajuste o orçamento para visualizar a pizza.`;
+    else{const livre=liquido-totalDest;if(livre>0.005)totais['Ainda disponível']=livre;status.textContent=`Valor líquido para distribuir: ${brl(liquido)}${livre>0.005?`; ${brl(livre)} ainda sem destinação`:'. Tudo foi distribuído.'}`;}
+  }
+  const invalido=modoGrafico==='distribuicao'&&(liquido<=0||totalDest>liquido+0.005);
+  const labels=invalido?[]:Object.keys(totais).filter(c=>totais[c]>0), valores=labels.map(c=>totais[c]);
+  const cores=labels.map((c,i)=>corPorCategoria[c]||coresGrafico[(nomesCategoriasResumo.indexOf(c)+coresGrafico.length)%coresGrafico.length]||coresGrafico[i%coresGrafico.length]);
+  if(!grafico){status.textContent+=' A biblioteca do gráfico não carregou.';return;}
+  grafico.data.labels=labels;grafico.data.datasets[0].data=valores;grafico.data.datasets[0].backgroundColor=cores;grafico.update('none');
+}
+let grafico=null;
+if(typeof Chart!=='undefined')grafico=new Chart(document.getElementById('grafico-orcamento'),{type:'pie',data:{labels:[],datasets:[{data:[],backgroundColor:[],borderWidth:1,borderColor:'#1a1a2e'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#c4b5fd',boxWidth:12}},tooltip:{callbacks:{label:ctx=>{const total=ctx.dataset.data.reduce((a,b)=>a+Number(b||0),0),pct=total?Number(ctx.parsed)/total*100:0;return ` ${ctx.label}: ${brl(ctx.parsed)} (${pct.toFixed(1).replace('.',',')}%)`;}}}}}});
+else document.getElementById('status-grafico').textContent='O gráfico precisa carregar a biblioteca Chart.js.';
+let modoGrafico='despesas';
+function atualizarResumo(){
+  const editando=modal.open,receita=parseValor(document.getElementById('receita').value),linhasFixas=[...document.querySelectorAll('.item-fixo')],linhasDest=[...document.querySelectorAll('.item-destinacao')];
+  const totalFixas=linhasFixas.reduce((s,l)=>s+parseValor(l.querySelector('[name="fixa_valor"]').value),0),totalDest=linhasDest.reduce((s,l)=>s+parseValor(l.querySelector('[name="dest_valor"]').value),0),liquido=receita-totalFixas,restante=liquido-totalDest;
+  document.getElementById('total-fixas').textContent=brl(totalFixas);document.getElementById('total-destinacoes').textContent=brl(totalDest);document.getElementById('liquido-fixas').textContent=brl(liquido);document.getElementById('resumo-destinacoes').textContent=brl(totalDest);
+  const saldo=document.getElementById('dinheiro-restante');saldo.textContent=brl(restante);saldo.classList.toggle('text-red-300',restante<0);saldo.classList.toggle('text-emerald-300',restante>=0);document.getElementById('aviso-orcamento').classList.toggle('hidden',restante>=-0.005);
+  if(editando)return;
+  const totais={};for(const l of linhasFixas){const c=l.querySelector('[name="fixa_categoria"]').value;totais[c]=(totais[c]||0)+parseValor(l.querySelector('[name="fixa_valor"]').value);}for(const l of linhasDest){const c=l.querySelector('[name="dest_categoria"]').value;totais[c]=(totais[c]||0)+parseValor(l.querySelector('[name="dest_valor"]').value);}
+  const corpo=document.getElementById('resumo-categorias');corpo.innerHTML=nomesCategoriasResumo.filter(c=>totais[c]>0).map(c=>`<tr class="border-t border-white/10"><td class="py-2">${c}</td><td class="text-right">${brl(totais[c])}</td><td class="text-right">${receita?((totais[c]/receita)*100).toFixed(1).replace('.',','):'0,0'}%</td></tr>`).join('')||'<tr><td colspan="3" class="py-4 text-center text-violet-200/50">Registre um orçamento para ver o resumo por categoria.</td></tr>';
+  atualizarGrafico(linhasFixas,linhasDest,totalFixas,totalDest,liquido);
+}
+function adicionarLinha(modelo,container){container.appendChild(document.getElementById(modelo).content.cloneNode(true));salvarRascunho();atualizarResumo();}
+document.getElementById('adicionar-fixa').addEventListener('click',()=>adicionarLinha('modelo-fixa',document.getElementById('itens-fixos')));
+document.getElementById('adicionar-destinacao').addEventListener('click',()=>adicionarLinha('modelo-destinacao',document.getElementById('itens-destinacoes')));
+form.addEventListener('input',()=>{salvarRascunho();atualizarResumo();});form.addEventListener('change',()=>{salvarRascunho();atualizarResumo();});
+form.addEventListener('click',e=>{if(e.target.closest('.remover-linha')){e.target.closest('tr').remove();salvarRascunho();atualizarResumo();}});
+function capturar(){return{receita:document.getElementById('receita').value,fixas:lerLinhas('item-fixo','fixa'),destinacoes:lerLinhas('item-destinacao','dest')};}
+function restaurarLinhas(containerId,templateId,prefixo,lista){const container=document.getElementById(containerId);container.innerHTML='';for(const item of lista||[]){const fragment=document.getElementById(templateId).content.cloneNode(true),linha=fragment.querySelector('tr'),select=linha.querySelector(`[name="${prefixo}_categoria"]`);if([...select.options].some(o=>o.value===item.categoria))select.value=item.categoria;linha.querySelector(`[name="${prefixo}_descricao"]`).value=item.descricao||'';linha.querySelector(`[name="${prefixo}_valor"]`).value=item.valor||'';container.appendChild(fragment);}}
+function carregarFormulario(d){document.getElementById('receita').value=d.receita||'';restaurarLinhas('itens-fixos','modelo-fixa','fixa',d.fixas);restaurarLinhas('itens-destinacoes','modelo-destinacao','dest',d.destinacoes);}
+function salvarRascunho(){try{sessionStorage.setItem(chaveRascunho,JSON.stringify(capturar()));document.getElementById('status-plano').textContent='Rascunho guardado nesta aba; ainda não está registrado.';}catch(_e){}}
+function cancelarFormulario(){sessionStorage.removeItem(chaveRascunho);if(erroFormulario){window.location.href=`{{ url_for('pagina_orcamento',mes=mes,ano=ano) }}`;return;}carregarFormulario(planoInicial);modal.close();document.getElementById('status-plano').textContent='Alterações não salvas descartadas.';atualizarResumo();}
+document.getElementById('abrir-formulario').addEventListener('click',()=>modal.showModal());
+document.getElementById('fechar-formulario').addEventListener('click',cancelarFormulario);
+document.getElementById('cancelar-formulario').addEventListener('click',cancelarFormulario);
+modal.addEventListener('cancel',e=>{e.preventDefault();cancelarFormulario();});
+form.addEventListener('submit',e=>{if(e.submitter?.id!=='apagar-plano')salvarRascunho();});
+function restaurarRascunho(){if(limparRascunhoAoCarregar){sessionStorage.removeItem(chaveRascunho);return;}try{const d=JSON.parse(sessionStorage.getItem(chaveRascunho)||'null');if(d){carregarFormulario(d);modal.showModal();document.getElementById('status-plano').textContent='Rascunho recuperado nesta aba. Salve para registrar o orçamento.';}}catch(_e){sessionStorage.removeItem(chaveRascunho);}if(erroFormulario)modal.showModal();}
+document.querySelectorAll('.modo-grafico').forEach(b=>b.addEventListener('click',()=>{modoGrafico=b.dataset.modoGrafico;document.querySelectorAll('.modo-grafico').forEach(x=>{const ativo=x===b;x.setAttribute('aria-pressed',String(ativo));x.classList.toggle('bg-accent',ativo);x.classList.toggle('font-semibold',ativo);x.classList.toggle('bg-white/10',!ativo);});atualizarResumo();}));
+restaurarRascunho();atualizarResumo();
+</script>
+{% endblock %}

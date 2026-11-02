@@ -1,0 +1,11 @@
+services:
+  ket-finance:
+    build: .
+    container_name: ket-finance
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=troque-por-uma-chave-secreta
+    volumes:
+      - ./dados:/data   # o banco fica na sua máquina e sobrevive ao container
+    restart: unless-stopped

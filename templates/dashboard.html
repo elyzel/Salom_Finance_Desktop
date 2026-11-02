@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block titulo %}Dashboard{% endblock %}
+{% block conteudo %}
+<section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  {% set cards = [
+    ('Patrimônio total', patrimonio, 'text-violet-200'),
+    ('Receitas do mês', resumo.receitas, 'text-emerald-400'),
+    ('Despesas do mês', resumo.despesas, 'text-red-400'),
+    ('Saldo do mês', resumo.saldo, 'text-emerald-400' if resumo.saldo >= 0 else 'text-red-400')] %}
+  {% for rotulo, valor, cor in cards %}
+  <div class="card p-5">
+    <div class="text-sm text-violet-200/70">{{ rotulo }}</div>
+    <div class="text-2xl font-bold mt-1 {{ cor }}">{{ valor|brl }}</div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="grid lg:grid-cols-3 gap-4 mb-6">
+  <div class="card p-5 lg:col-span-2">
+    <h2 class="font-semibold mb-3">Receitas x Despesas (6 meses)</h2>
+    <div class="h-64"><canvas id="gMeses"></canvas></div>
+  </div>
+  <div class="card p-5">
+    <h2 class="font-semibold mb-3">Despesas por categoria</h2>
+    {% if graficos.categorias.labels %}<div class="h-64"><canvas id="gCategorias"></canvas></div>
+    {% else %}<p class="text-violet-200/60 text-sm">Sem despesas neste mês.</p>{% endif %}
+  </div>
+</section>
+
+<section class="grid lg:grid-cols-3 gap-4 mb-6">
+  <div class="card p-5 lg:col-span-2">
+    <h2 class="font-semibold mb-3">Movimentação diária</h2>
+    <div class="h-56"><canvas id="gDiaria"></canvas></div>
+  </div>
+  <div class="card p-5">
+    <h2 class="font-semibold mb-3">Contas</h2>
+    <ul class="space-y-2 text-sm">
+      {% for nome, saldo in contas.items() %}
+      <li class="flex justify-between"><span>{{ nome }}</span><span class="font-medium">{{ saldo|brl }}</span></li>
+      {% endfor %}
+    </ul>
+    <div class="border-t border-white/10 mt-4 pt-3 text-sm space-y-1">
+      <div class="flex justify-between"><span>Ações</span><span>{{ total_acoes|brl }}</span></div>
+      <div class="flex justify-between"><span>CDB</span><span>{{ cdb.valor|brl }}</span></div>
+      {% if agendados %}<div class="text-amber-300 pt-1">⏳ {{ agendados }} lançamento(s) agendado(s)</div>{% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="card p-5">
+  <h2 class="font-semibold mb-4">🎯 Metas</h2>
+  {% if metas %}
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for m in metas %}
+    {% set pct = (m.valor_atual / m.valor_alvo * 100) if m.valor_alvo else 0 %}
+    <div class="bg-white/5 rounded-xl p-4">
+      <div class="flex justify-between"><span>{{ m.emoji }} {{ m.nome }}</span><span class="text-sm">{{ '%.0f'|format(pct) }}%</span></div>
+      <div class="h-2 bg-white/10 rounded-full mt-3 overflow-hidden"><div class="h-full bg-accent rounded-full" data-w="{{ [pct,100]|min }}"></div></div>
+      <div class="text-xs text-violet-200/70 mt-2">{{ m.valor_atual|brl }} de {{ m.valor_alvo|brl }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="text-violet-200/60 text-sm">Nenhuma meta cadastrada.</p>{% endif %}
+</section>
+
+<div id="dados" data-g='{{ graficos|tojson }}' hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const G = JSON.parse(document.getElementById('dados').dataset.g);
+Chart.defaults.color = '#c4b5fd'; Chart.defaults.borderColor = '#ffffff14';
+const brl = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+const opcoes = { responsive: true, maintainAspectRatio: false,
+  plugins: { tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + brl(c.parsed.y ?? c.parsed) } } } };
+
+new Chart(gMeses, { type: 'bar', data: { labels: G.meses.labels, datasets: [
+  { label: 'Receitas', data: G.meses.receitas, backgroundColor: '#10b981', borderRadius: 6 },
+  { label: 'Despesas', data: G.meses.despesas, backgroundColor: '#ef4444', borderRadius: 6 }] }, options: opcoes });
+
+new Chart(gDiaria, { type: 'line', data: { labels: G.diaria.dias, datasets: [
+  { label: 'Receitas', data: G.diaria.receitas, borderColor: '#10b981', backgroundColor: '#10b98122', fill: true, tension: .35 },
+  { label: 'Despesas', data: G.diaria.despesas, borderColor: '#ef4444', backgroundColor: '#ef444422', fill: true, tension: .35 }] }, options: opcoes });
+
+if (G.categorias.labels.length) new Chart(gCategorias, { type: 'doughnut',
+  data: { labels: G.categorias.labels, datasets: [{ data: G.categorias.valores, backgroundColor: G.categorias.cores, borderWidth: 0 }] },
+  options: { responsive: true, maintainAspectRatio: false, cutout: '62%',
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+      tooltip: { callbacks: { label: c => ' ' + brl(c.parsed) } } } } });
+</script>
+{% endblock %}

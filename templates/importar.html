@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block titulo %}Importar Extrato{% endblock %}
+{% block conteudo %}
+{% if not linhas %}
+<div class="grid lg:grid-cols-3 gap-4">
+  <form method="post" enctype="multipart/form-data" class="card p-5 space-y-4 h-fit lg:col-span-1">
+    <h2 class="font-semibold">1. Enviar extrato</h2>
+    <label class="block text-sm text-violet-200/70">Arquivo (PDF, OFX ou CSV)
+      <input type="file" name="arquivo" accept=".pdf,.ofx,.qfx,.csv" required class="mt-1">
+    </label>
+    <label class="block text-sm text-violet-200/70">Conta padrão dos lançamentos
+      <select name="conta" class="mt-1">{% for c in contas %}<option>{{ c }}</option>{% endfor %}</select>
+    </label>
+    <button class="w-full bg-accent hover:bg-violet-500 rounded-xl py-2.5 font-semibold transition">Ler extrato</button>
+  </form>
+  <div class="card p-5 lg:col-span-2 text-sm text-violet-100/80 space-y-3">
+    <h2 class="font-semibold text-base text-violet-50">Como funciona</h2>
+    <p>① Você envia o extrato. ② O sistema identifica data, descrição e valor de cada linha e sugere uma categoria.
+       ③ Você <b>revisa tudo</b> numa tabela, ajusta o que precisar e desmarca o que não quiser.
+       ④ Só o que estiver marcado é gravado, e os saldos das contas são atualizados.</p>
+    <p>Lançamentos que já existem no sistema (mesma data, valor e descrição) vêm <b class="text-amber-300">desmarcados</b> como possível duplicata.</p>
+    <p class="text-violet-200/60">💡 PDF é o formato menos previsível: cada banco tem um layout. Se puder, prefira <b>OFX</b> ou <b>CSV</b>, que são lidos com mais precisão. Faturas de cartão em PDF (datas só com dia/mês) ainda não são reconhecidas.</p>
+  </div>
+</div>
+
+{% else %}
+<form id="form-importacao" method="post" action="{{ url_for('importar_confirmar') }}" class="card p-5">
+  <input type="hidden" name="total" value="{{ linhas|length }}">
+  <input type="hidden" name="conta_padrao" value="{{ conta_padrao }}">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div>
+      <h2 class="font-semibold">2. Revisar lançamentos</h2>
+      <p class="text-sm text-violet-200/70">{{ arquivo }} · {{ linhas|length }} encontrado(s) ·
+        <span class="text-amber-300">{{ duplicadas }} possível(is) duplicata(s)</span> · conta padrão: <b>{{ conta_padrao }}</b></p>
+      <p id="status-rascunho" class="text-xs text-emerald-300 mt-1">{% if rascunho_restaurado %}Rascunho restaurado. Suas alterações são salvas automaticamente.{% else %}Suas alterações são salvas automaticamente enquanto você revisa.{% endif %}</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-sm">Selecionados: <b id="qtd">0</b></span>
+      <button type="button" id="descartar-revisao" class="bg-white/10 hover:bg-white/20 rounded-xl px-4 py-2">Descartar revisão</button>
+      <button class="bg-accent hover:bg-violet-500 rounded-xl px-5 py-2 font-semibold">Importar selecionados</button>
+    </div>
+  </div>
+  <div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="text-violet-200/60 text-left">
+      <tr><th class="py-2 w-8"><input type="checkbox" id="todos" title="Marcar/desmarcar todos"></th>
+          <th>Data</th><th>Descrição / regra</th><th class="text-right">Valor</th><th>Tipo</th><th>Categoria</th><th>Conta</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for l in linhas %}
+      <tr data-duplicada="{{ 1 if l.duplicada else 0 }}" data-regra="{{ l.regra_aplicada or '' }}" data-regra-numero="{{ l.regra_numero or '' }}" class="border-t border-white/10 {{ 'bg-amber-400/10' if l.duplicada }}">
+        <td class="py-2"><input type="checkbox" class="inc" name="inc_{{ loop.index0 }}" {{ 'checked' if l.selecionada else '' }}></td>
+        <td class="whitespace-nowrap">{{ l.data }}<input type="hidden" name="data_{{ loop.index0 }}" value="{{ l.data }}"></td>
+        <td class="min-w-[14rem]"><input name="desc_{{ loop.index0 }}" value="{{ l.descricao }}">
+          {% if l.duplicada %}<div class="text-xs text-amber-300 mt-1">⚠ possível duplicata</div>{% endif %}
+          {% if l.regra_aplicada %}<div class="text-xs text-violet-300 mt-1">⚙ {{ l.regra_aplicada }}</div>{% endif %}</td>
+        <td class="text-right whitespace-nowrap font-medium {{ 'text-emerald-400' if l.tipo == 'Receita' else 'text-red-400' }}">
+          {{ l.valor|brl }}<input type="hidden" name="valor_{{ loop.index0 }}" value="{{ '%.2f'|format(l.valor) }}"></td>
+        <td><select name="tipo_{{ loop.index0 }}">
+          {% for t in ['Receita','Despesa'] %}<option {{ 'selected' if t == l.tipo }}>{{ t }}</option>{% endfor %}</select></td>
+        <td><select name="cat_{{ loop.index0 }}">
+          {% for c in categorias %}<option {{ 'selected' if c == l.categoria_sugerida }}>{{ c }}</option>{% endfor %}</select></td>
+        <td><input type="hidden" name="investimento_{{ loop.index0 }}" id="investimento_{{ loop.index0 }}" value="{{ l.investimento|default('') }}"></td>
+        <td><select name="conta_{{ loop.index0 }}">
+          {% for c in contas %}<option {{ 'selected' if c == conta_padrao }}>{{ c }}</option>{% endfor %}</select></td>
+        <td class="whitespace-nowrap"><a class="text-violet-300 hover:underline text-xs" href="{{ url_for('pagina_regras', descricao=l.descricao, valor='%.2f'|format(l.valor), tipo=l.tipo) }}">＋ regra</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</form>
+<dialog id="modal-destino-investimento" class="w-[min(95vw,36rem)] rounded-2xl bg-[#17152d] text-violet-50 p-0 shadow-2xl backdrop:bg-black/70">
+  <div class="p-6 space-y-4">
+    <div>
+      <h2 class="text-xl font-bold">💰 Destino dos investimentos</h2>
+      <p class="mt-2 text-sm text-violet-200/70">Escolha para onde vai cada lançamento categorizado como investimento. O valor será debitado da conta selecionada e registrado no destino escolhido.</p>
+    </div>
+    <div id="destinos-investimentos" class="space-y-3"></div>
+    <p class="text-xs text-violet-200/50">“Bolsa de Valores” registra o aporte destinado à corretora, sem associá-lo automaticamente a uma ação. Para atualizar a carteira de ações, também são necessários ticker, quantidade, preço e custos da operação.</p>
+    <div id="erro-destino-investimento" class="hidden rounded-lg bg-red-500/15 p-3 text-sm text-red-200"></div>
+    <div class="flex justify-end gap-2 pt-2">
+      <button type="button" id="cancelar-destino-investimento" class="rounded-xl bg-white/10 px-4 py-2">Voltar à revisão</button>
+      <button type="button" id="confirmar-destino-investimento" class="rounded-xl bg-accent px-5 py-2 font-semibold">Confirmar importação</button>
+    </div>
+  </div>
+</dialog>
+<script>
+const caixas = [...document.querySelectorAll('.inc')], todos = document.getElementById('todos');
+const formImportacao = document.getElementById('form-importacao');
+const modalDestino = document.getElementById('modal-destino-investimento');
+let enviandoImportacao = false;
+function contar() {
+  const n = caixas.filter(c => c.checked).length;
+  document.getElementById('qtd').textContent = n;
+  todos.checked = n === caixas.length;
+}
+todos.addEventListener('change', () => { caixas.forEach(c => c.checked = todos.checked); contar(); });
+caixas.forEach(c => c.addEventListener('change', contar));
+formImportacao.addEventListener('submit', async e => {
+  const indices = caixas.filter(c => c.checked).map(c => c.name.replace('inc_', ''))
+    .filter(i => document.querySelector(`[name="cat_${i}"]`)?.value === '💰 Investimentos');
+  if (!indices.length) {
+    e.preventDefault();
+    if(!await salvarRascunho())return;
+    enviandoImportacao = true; HTMLFormElement.prototype.submit.call(formImportacao); return;
+  }
+  e.preventDefault();
+  const area = document.getElementById('destinos-investimentos');
+  area.innerHTML = indices.map(i => {
+    const descricao = document.querySelector(`[name="desc_${i}"]`)?.value || 'Lançamento';
+    const data = document.querySelector(`[name="data_${i}"]`)?.value || '';
+    const valorRaw = Number(document.querySelector(`[name="valor_${i}"]`)?.value || 0);
+    const valor = valorRaw.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const destinoSalvo = document.getElementById(`investimento_${i}`)?.value || '';
+    const segura = descricao.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return `<label class="block rounded-xl bg-white/5 p-3 text-sm"><span class="font-medium">${segura}</span><span class="ml-2 text-emerald-300">${valor}</span><span class="block text-xs text-violet-200/60 mt-1">${data}</span>
+      <select class="destino-investimento mt-2 w-full" data-index="${i}"><option value="" ${destinoSalvo?'':'selected'}>Selecione o destino...</option><option value="CDB" ${destinoSalvo==='CDB'?'selected':''}>🏦 CDB / Reserva de Emergência</option><option value="Bolsa de Valores" ${destinoSalvo==='Bolsa de Valores'?'selected':''}>📊 Bolsa de Valores (aporte à corretora)</option></select></label>`;
+  }).join('');
+  document.getElementById('erro-destino-investimento').classList.add('hidden');
+  modalDestino.showModal();
+});
+document.getElementById('cancelar-destino-investimento').addEventListener('click',()=>modalDestino.close());
+document.getElementById('descartar-revisao').addEventListener('click',async()=>{
+  if(!confirm('Descartar esta revisão e apagar as alterações salvas?'))return;
+  await fetch('{{ url_for("descartar_rascunho_importacao") }}',{method:'POST'});
+  enviandoImportacao=true; window.location.href='{{ url_for("importar") }}';
+});
+document.getElementById('destinos-investimentos').addEventListener('change',e=>{
+  const select=e.target.closest('.destino-investimento'); if(!select)return;
+  document.getElementById(`investimento_${select.dataset.index}`).value=select.value; agendarSalvamento();
+});
+document.getElementById('confirmar-destino-investimento').addEventListener('click',async()=>{
+  const selects=[...document.querySelectorAll('.destino-investimento')];
+  if(selects.some(s=>!s.value)){const el=document.getElementById('erro-destino-investimento');el.textContent='Escolha um destino para cada lançamento de investimento.';el.classList.remove('hidden');return;}
+  selects.forEach(s=>{document.getElementById(`investimento_${s.dataset.index}`).value=s.value;});
+  if(!await salvarRascunho())return;
+  modalDestino.close(); enviandoImportacao=true; HTMLFormElement.prototype.submit.call(formImportacao);
+});
+let temporizadorRascunho;
+let filaSalvamentoRascunho=Promise.resolve(true);
+function dadosRascunho() {
+  const linhas=caixas.map(c=>{
+    const i=c.name.replace('inc_',''), tr=c.closest('tr');
+    const valor=Number(document.querySelector(`[name="valor_${i}"]`)?.value||0);
+    return {data:document.querySelector(`[name="data_${i}"]`)?.value||'',
+      descricao:document.querySelector(`[name="desc_${i}"]`)?.value||'', valor,
+      tipo:document.querySelector(`[name="tipo_${i}"]`)?.value||'Despesa',
+      categoria_sugerida:document.querySelector(`[name="cat_${i}"]`)?.value||'📦 Outros',
+      conta:document.querySelector(`[name="conta_${i}"]`)?.value||'',
+      investimento:document.getElementById(`investimento_${i}`)?.value||'',
+      selecionada:c.checked, duplicada:tr.dataset.duplicada==='1',
+      regra_aplicada:tr.dataset.regra||'', regra_numero:tr.dataset.regraNumero||null,
+      investimento_pendente:document.querySelector(`[name="cat_${i}"]`)?.value==='💰 Investimentos'};
+  });
+  return {linhas,conta_padrao:document.querySelector('[name="conta_padrao"]')?.value||''};
+}
+function salvarRascunho() {
+  clearTimeout(temporizadorRascunho);
+  const status=document.getElementById('status-rascunho');
+  if(!status)return Promise.resolve(false);
+  status.textContent='Salvando revisão…'; status.className='text-xs text-amber-300 mt-1';
+  const corpo=JSON.stringify(dadosRascunho());
+  const tarefa=filaSalvamentoRascunho.then(async()=>{
+    try {
+      const response=await fetch('{{ url_for("salvar_rascunho_importacao") }}',{method:'POST',headers:{'Content-Type':'application/json'},body:corpo});
+      if(!response.ok)throw new Error('Falha ao salvar');
+      status.textContent='Rascunho salvo automaticamente.'; status.className='text-xs text-emerald-300 mt-1'; return true;
+    } catch(_e) { status.textContent='Não foi possível salvar agora. Verifique sua conexão.'; status.className='text-xs text-red-300 mt-1'; return false; }
+  });
+  filaSalvamentoRascunho=tarefa;
+  return tarefa;
+}
+function agendarSalvamento(){clearTimeout(temporizadorRascunho);temporizadorRascunho=setTimeout(()=>salvarRascunho(),350);}
+formImportacao.addEventListener('input',agendarSalvamento);
+formImportacao.addEventListener('change',agendarSalvamento);
+window.addEventListener('pagehide',()=>{
+  if(enviandoImportacao)return;
+  const data=JSON.stringify(dadosRascunho());
+  navigator.sendBeacon('{{ url_for("salvar_rascunho_importacao") }}',new Blob([data],{type:'application/json'}));
+});
+contar();
+</script>
+{% endif %}
+{% endblock %}

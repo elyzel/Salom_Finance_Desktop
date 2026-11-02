@@ -1,130 +1,69 @@
-"""Controller para gerenciar metas de orçamento"""
-import os
-from openpyxl import Workbook, load_workbook
+"""Controller para gerenciar metas de orçamento (somente SQLite)"""
+from config import CATEGORIES
 
 
 class BudgetController:
     def __init__(self, db):
         self.db = db
-        self.excel_file = "metas_orcamento.xlsx"
-        
-        # Valores padrão das categorias
         self.valores_padrao = {
             "Moradia": 30,
             "Educação": 10,
             "Reserva de Emergência": 20,
             "Investimentos": 20,
+            "Saúde": 0,
             "Lazer": 10,
             "Viagem": 10
         }
-    
+        self.categorias_destinacoes = [
+            "Reserva de Emergência", "Investimentos", "Lazer", "Viagem"
+        ]
+        nomes = [
+            categoria.split(" ", 1)[1] if " " in categoria else categoria
+            for categoria in CATEGORIES
+        ]
+        self.categorias_despesas = list(dict.fromkeys(
+            nome for nome in nomes if nome not in self.categorias_destinacoes
+        ))
+
     def carregar_metas_orcamento(self):
-        """
-        Carrega as metas de orçamento do SQLite.
-        Se não existir, retorna valores padrão.
-        """
+        """Carrega as metas do SQLite; se não houver, retorna os valores padrão."""
         try:
             cursor = self.db.conn.execute("SELECT categoria, percentual FROM metas_orcamento")
             metas = {row[0]: row[1] for row in cursor}
-            return metas if metas else self.valores_padrao.copy()
+            if not metas:
+                return self.valores_padrao.copy()
+            # Categorias novas aparecem também para bancos que já tinham metas salvas.
+            for categoria, percentual in self.valores_padrao.items():
+                metas.setdefault(categoria, percentual)
+            return metas
         except Exception:
             return self.valores_padrao.copy()
-    
+
     def salvar_metas_orcamento(self, metas):
-        """
-        Salva as metas de orçamento no SQLite e no Excel.
-        
-        Args:
-            metas (dict): Dicionário com categoria: percentual
-        """
-        # Salvar no SQLite usando a conexão do Database
+        """Salva as metas (categoria -> percentual) no SQLite."""
         with self.db.conn:
             for categoria, percentual in metas.items():
-                self.db.conn.execute("""
-                    INSERT OR REPLACE INTO metas_orcamento (categoria, percentual)
-                    VALUES (?, ?)
-                """, (categoria, percentual))
-        
-        # Salvar no Excel
-        self._salvar_excel(metas)
-    
-    def _salvar_excel(self, metas):
-        """
-        Salva os dados no arquivo Excel.
-        Cria ou sobrescreve a aba 'metas'.
-        """
-        # Verificar se o arquivo existe
-        if os.path.exists(self.excel_file):
-            wb = load_workbook(self.excel_file)
-            # Remover aba 'metas' se já existir
-            if 'metas' in wb.sheetnames:
-                del wb['metas']
-        else:
-            wb = Workbook()
-            # Remover a aba padrão
-            if 'Sheet' in wb.sheetnames:
-                del wb['Sheet']
-        
-        # Criar nova aba 'metas'
-        ws = wb.create_sheet('metas')
-        
-        # Cabeçalhos
-        ws['A1'] = 'Categoria'
-        ws['B1'] = 'Percentual'
-        
-        # Dados
-        linha = 2
-        for categoria, percentual in metas.items():
-            ws[f'A{linha}'] = categoria
-            ws[f'B{linha}'] = percentual
-            linha += 1
-        
-        # Salvar arquivo
-        wb.save(self.excel_file)
-    
-    def carregar_do_excel(self):
-        """
-        Carrega as metas do arquivo Excel.
-        Se não existir, retorna None.
-        """
-        if not os.path.exists(self.excel_file):
-            return None
-        
-        try:
-            wb = load_workbook(self.excel_file)
-            if 'metas' not in wb.sheetnames:
-                return None
-            
-            ws = wb['metas']
-            metas = {}
-            
-            # Ler dados (pular cabeçalho)
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if row[0] and row[1] is not None:
-                    categoria = row[0]
-                    percentual = float(row[1])
-                    metas[categoria] = percentual
-            
-            return metas if metas else None
-        except Exception:
-            return None
-    
+                self.db.conn.execute(
+                    "INSERT OR REPLACE INTO metas_orcamento (categoria, percentual) VALUES (?, ?)",
+                    (categoria, percentual))
+
     def resetar_valores(self):
-        """
-        Reseta todos os valores para o padrão.
-        """
         self.salvar_metas_orcamento(self.valores_padrao.copy())
         return self.valores_padrao.copy()
-    
+
     def validar_total(self, metas):
-        """
-        Valida se a soma dos percentuais não ultrapassa 100%.
-        
-        Args:
-            metas (dict): Dicionário com categoria: percentual
-            
-        Returns:
-            tuple: (bool, float) - (é válido?, total)
-        """
+        """Retorna (é válido?, total): a soma não pode passar de 100%."""
         total = sum(metas.values())
         return (total <= 100, total)
+
+    def carregar_planejamento(self, periodo):
+        plano = self.db.get_orcamento_planejado(periodo)
+        plano["fixas"] = [item for item in plano["itens"] if item["grupo"] == "fixa"]
+        plano["destinacoes"] = [item for item in plano["itens"] if item["grupo"] == "destinacao"]
+        return plano
+
+    def salvar_planejamento(self, periodo, receita, itens):
+        self.db.salvar_orcamento_planejado(periodo, receita, itens)
+
+    def limpar_planejamento(self, periodo):
+        self.db.limpar_orcamento_planejado(periodo)

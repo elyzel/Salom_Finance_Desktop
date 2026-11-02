@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block titulo %}Investimentos{% endblock %}
+{% block conteudo %}
+{% macro barra(valor, meta) %}
+  {% set pct = (valor / meta * 100) if meta else 0 %}
+  <div class="h-2.5 bg-white/10 rounded-full mt-3 overflow-hidden"><div class="h-full bg-accent rounded-full" data-w="{{ [pct,100]|min }}"></div></div>
+  <div class="text-xs text-violet-200/70 mt-1">{{ '%.1f'|format(pct) }}% da meta</div>
+{% endmacro %}
+<div class="grid lg:grid-cols-2 gap-4">
+  <section class="card p-5">
+    <h2 class="font-semibold mb-1">🏦 CDB / Reserva de Emergência</h2>
+    <div class="text-2xl font-bold">{{ cdb.valor|brl }}</div>
+    <div class="text-sm text-violet-200/70">Meta: {{ cdb.meta|brl }}</div>
+    {{ barra(cdb.valor, cdb.meta) }}
+    <form method="post" class="flex gap-2 mt-4 flex-wrap">
+      <input name="valor" placeholder="Valor" inputmode="decimal" required class="!w-36">
+      <button formaction="{{ url_for('cdb_operacao', op='aportar') }}" class="bg-emerald-500 hover:bg-emerald-400 rounded-xl px-4 py-2 font-semibold">Aportar</button>
+      <button formaction="{{ url_for('cdb_operacao', op='resgatar') }}" class="bg-red-500 hover:bg-red-400 rounded-xl px-4 py-2 font-semibold">Resgatar</button>
+      <button formaction="{{ url_for('cdb_operacao', op='meta') }}" class="bg-accent hover:bg-violet-500 rounded-xl px-4 py-2 font-semibold">Definir meta</button>
+    </form>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="font-semibold mb-1">📊 Bolsa de Valores</h2>
+    <div class="text-2xl font-bold">{{ total_acoes|brl }}</div>
+    <div class="text-sm text-violet-200/70 mt-1">Aportes bancários registrados para a Bolsa: <b class="text-violet-100">{{ aportes_bolsa|brl }}</b></div>
+    <p class="text-xs text-violet-200/50 mt-1">Este total acompanha valores enviados à corretora; não representa o valor atual das ações.</p>
+    <div class="text-sm text-violet-200/70">Meta: {{ meta_inv|brl }}</div>
+    {{ barra(total_acoes, meta_inv) }}
+    <form method="post" action="{{ url_for('meta_investimentos') }}" class="flex gap-2 mt-4">
+      <input name="valor" placeholder="Nova meta total (R$)" inputmode="decimal" required>
+      <button class="bg-accent hover:bg-violet-500 rounded-xl px-4 font-semibold whitespace-nowrap">Salvar meta</button>
+    </form>
+  </section>
+
+  <section class="card p-5 lg:col-span-2">
+    <h2 class="font-semibold mb-3">Carteira de ações</h2>
+    <form method="post" action="{{ url_for('acao_nova') }}" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+      <input name="ticker" placeholder="Ticker (ex: PETR4)" required>
+      <input name="quantidade" type="number" min="1" placeholder="Quantidade" required>
+      <input name="preco" placeholder="Preço médio (R$)" inputmode="decimal" required>
+      <button class="bg-accent hover:bg-violet-500 rounded-xl font-semibold">➕ Adicionar</button>
+    </form>
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="text-violet-200/60 text-left"><tr><th class="py-2">Ticker</th><th>Qtd</th><th>Preço médio</th><th class="text-right">Total</th><th></th></tr></thead>
+      <tbody>
+      {% for a in acoes %}
+        <tr class="border-t border-white/10">
+          <td class="py-2 font-semibold">{{ a.ticker }}</td><td>{{ a.quantidade }}</td><td>{{ a.preco_medio|brl }}</td>
+          <td class="text-right">{{ (a.quantidade * a.preco_medio)|brl }}</td>
+          <td class="text-right"><form method="post" action="{{ url_for('acao_excluir', aid=a.id) }}" onsubmit="return confirm('Remover {{ a.ticker }}?')">
+            <button class="px-2 hover:text-red-400">🗑</button></form></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="py-6 text-center text-violet-200/60">Nenhuma ação cadastrada.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="card p-5 lg:col-span-2">
+    <h2 class="font-semibold mb-3">Movimentações de aportes</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-violet-200/60 text-left"><tr><th class="py-2">Data</th><th>Destino</th><th>Descrição</th><th class="text-right">Valor</th></tr></thead>
+        <tbody>
+        {% for m in movimentacoes %}
+          <tr class="border-t border-white/10"><td class="py-2 whitespace-nowrap">{{ m.data }}</td><td>{{ m.investimento }}</td><td>{{ m.descricao }}</td><td class="text-right">{{ m.valor|brl }}</td></tr>
+        {% else %}
+          <tr><td colspan="4" class="py-5 text-center text-violet-200/60">Nenhum aporte confirmado pela importação.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

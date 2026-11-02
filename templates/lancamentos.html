@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block titulo %}Lançamentos{% endblock %}
+{% block conteudo %}
+<div class="grid lg:grid-cols-3 gap-4">
+  <form method="post" class="card p-5 space-y-3 h-fit">
+    <h2 class="font-semibold">Novo lançamento</h2>
+    <input type="hidden" name="mes_ref" value="{{ mes }}"><input type="hidden" name="ano_ref" value="{{ ano }}">
+    <select name="tipo" id="tipo" onchange="alternar()">{% for t in tipos %}<option>{{ t }}</option>{% endfor %}</select>
+    <input name="valor" placeholder="Valor (ex: 1.250,90)" required inputmode="decimal">
+    <input name="descricao" placeholder="Descrição" required>
+    <input type="date" name="data" value="{{ hoje }}" required>
+    <select name="conta">{% for c in contas %}<option>{{ c }}</option>{% endfor %}</select>
+    <select name="conta_destino" id="destino" class="hidden"><option value="">Conta de destino…</option>{% for c in contas %}<option>{{ c }}</option>{% endfor %}</select>
+    <select name="categoria">{% for c in categorias %}<option>{{ c }}</option>{% endfor %}</select>
+    <div class="flex gap-3 items-center">
+      <input type="number" name="parcelas" min="1" max="60" value="1" class="!w-24"><span class="text-sm text-violet-200/70">parcela(s)</span>
+    </div>
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="agendado" class="!w-auto"> Agendar (não afeta o saldo agora)</label>
+    <button class="w-full bg-accent hover:bg-violet-500 rounded-xl py-2.5 font-semibold transition">Salvar</button>
+  </form>
+
+  <div class="card p-5 lg:col-span-2 overflow-x-auto">
+    <div class="flex justify-between mb-3 text-sm">
+      <h2 class="font-semibold text-base">Registros de {{ nav.titulo }} <a href="{{ url_for('exportar', mes=mes, ano=ano) }}" class="ml-2 text-xs font-normal text-violet-300 hover:underline">⬇ exportar mês (Excel)</a></h2>
+      <span>Saldo: <b class="{{ 'text-emerald-400' if resumo.saldo >= 0 else 'text-red-400' }}">{{ resumo.saldo|brl }}</b></span>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="text-violet-200/60 text-left"><tr><th class="py-2">Data</th><th>Descrição</th><th>Categoria</th><th class="text-right">Valor</th><th></th></tr></thead>
+      <tbody>
+      {% for t in lista %}
+        <tr class="border-t border-white/10">
+          <td class="py-2">{{ t.data[:5] }}</td><td>{{ t.descricao }}</td><td>{{ t.categoria }}</td>
+          <td class="text-right font-medium {{ 'text-emerald-400' if t.tipo == 'Receita' else ('text-red-400' if t.tipo == 'Despesa' else 'text-sky-300') }}">
+            {{ '+' if t.tipo == 'Receita' else ('-' if t.tipo == 'Despesa' else '↔ ') }}{{ t.valor|brl }}</td>
+          <td class="text-right">
+            <form method="post" action="{{ url_for('excluir', tid=t.id) }}" onsubmit="return confirm('Excluir este lançamento?')">
+              <input type="hidden" name="mes" value="{{ mes }}"><input type="hidden" name="ano" value="{{ ano }}">
+              <button class="px-2 hover:text-red-400" title="Excluir">🗑</button></form></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="py-6 text-center text-violet-200/60">Nenhum lançamento neste mês.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if agendados %}
+    <h3 class="font-semibold mt-6 mb-2">⏳ Agendados ({{ agendados|length }})</h3>
+    <ul class="text-sm space-y-1 text-violet-200/80">
+      {% for t in agendados %}<li>{{ t.data }} — {{ t.descricao }} — {{ t.valor|brl }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</div>
+<script>
+function alternar() { document.getElementById('destino').classList.toggle('hidden', document.getElementById('tipo').value !== 'Transferência'); }
+</script>
+{% endblock %}

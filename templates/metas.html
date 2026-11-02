@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titulo %}Metas Financeiras{% endblock %}
+{% block conteudo %}
+<div class="grid lg:grid-cols-3 gap-4">
+  <form method="post" action="{{ url_for('meta_nova') }}" class="card p-5 space-y-3 h-fit">
+    <h2 class="font-semibold">Nova meta</h2>
+    <input name="nome" placeholder="Nome da meta" required>
+    <select name="emoji">{% for e in emojis %}<option>{{ e }}</option>{% endfor %}</select>
+    <input name="alvo" placeholder="Valor alvo (R$)" required inputmode="decimal">
+    <input name="categoria" placeholder="Categoria (opcional)">
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="prioritaria"> ⭐ Prioritária</label>
+    <button class="w-full bg-accent hover:bg-violet-500 rounded-xl py-2.5 font-semibold transition">Adicionar meta</button>
+  </form>
+
+  <div class="lg:col-span-2 grid sm:grid-cols-2 gap-4 content-start">
+    {% for m in metas %}
+    {% set pct = (m.valor_atual / m.valor_alvo * 100) if m.valor_alvo else 0 %}
+    <div class="card p-5 {{ 'ring-1 ring-amber-400/50' if m.prioritaria }}">
+      <div class="flex justify-between items-start">
+        <div><div class="font-semibold">{{ m.emoji }} {{ m.nome }} {{ '⭐' if m.prioritaria }}</div>
+          <div class="text-xs text-violet-200/60">{{ m.categoria }}</div></div>
+        <form method="post" action="{{ url_for('meta_excluir', mid=m.id) }}" onsubmit="return confirm('Remover esta meta?')">
+          <button class="hover:text-red-400" title="Remover">🗑</button></form>
+      </div>
+      <div class="h-2.5 bg-white/10 rounded-full mt-4 overflow-hidden">
+        <div class="h-full rounded-full {{ 'bg-emerald-400' if pct >= 100 else 'bg-accent' }}" data-w="{{ [pct,100]|min }}"></div></div>
+      <div class="flex justify-between text-sm mt-2"><span>{{ m.valor_atual|brl }} de {{ m.valor_alvo|brl }}</span><b>{{ '%.0f'|format(pct) }}%</b></div>
+      {% if pct >= 100 %}<div class="text-emerald-400 text-sm mt-2">🎉 Meta alcançada!</div>
+      {% else %}
+      <form method="post" action="{{ url_for('meta_aportar', mid=m.id) }}" class="flex gap-2 mt-3">
+        <input name="valor" placeholder="Valor a adicionar" inputmode="decimal" required>
+        <button class="bg-emerald-500 hover:bg-emerald-400 rounded-xl px-4 font-bold">＋</button></form>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="card p-6 text-violet-200/60 sm:col-span-2">Nenhuma meta cadastrada ainda.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

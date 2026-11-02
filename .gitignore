@@ -1,27 +1,12 @@
-# Dados pessoais / financeiros — NUNCA versionar isso
-ket_finance.db
-dados_financeiros.json
-*.db
-*.db-journal
-
-# Ambiente virtual Python
-venv/
-env/
-.venv/
-
-# Cache e bytecode do Python
 __pycache__/
 *.pyc
-*.pyo
+build/
+dist/
+node_modules/
+.env
 
-# Arquivos gerados pelo app (relatórios exportados em Excel)
-*.xlsx
-relatorios/
-
-# Configurações de IDE
-.vscode/
-.idea/
-
-# Arquivos do sistema operacional
-.DS_Store
-Thumbs.db
+# Dados pessoais
+*.db
+dados_financeiros.json
+metas_orcamento.xlsx
+dados/

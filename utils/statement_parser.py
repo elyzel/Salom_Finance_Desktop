@@ -24,41 +24,10 @@ from config import CATEGORIES
 
 
 # ---------------------------------------------------------------------------
-# Categorização automática por palavras-chave
+# Normalização
 # ---------------------------------------------------------------------------
-# Cada chave de CATEGORIES recebe uma lista de palavras/trechos que, se
-# encontrados na descrição do lançamento (sem acento, maiúsculo), indicam
-# aquela categoria. A ordem importa: a primeira que bater, vence.
-PALAVRAS_CHAVE_CATEGORIA = {
-    '🛒 Mercado': ['MERCADO', 'UNISSUL', 'SUPERMERCADO', 'ATACAD', 'HORTIFRUTI', 'CARREFOUR',
-                   'PAO DE ACUCAR', 'EXTRA ', 'ASSAI', 'DIA SUPERMERCADO'],
-    '🍔 Restaurante': ['IFOOD', 'RAPPI', 'RESTAURANTE', 'LANCHONETE', 'PIZZARIA',
-                       'PADARIA', 'BAR ', 'MC DONALD', 'BURGER', 'HABIBS'],
-    '🥐 Padaria': ['RSCSS SANTA CLARA'],
-    '🍦 Sorveteria': ['THE BEST', 'LUIGI'],
-    '💳 Cartão de Crédito': ['FATURA PAGA ITAU PLATINA'],
-    '🚌 Transporte': ['UBER', '99APP', '99POP', 'TAXI', 'METRO', 'ONIBUS',
-                      'BILHETE UNICO', 'POSTO ', 'COMBUSTIVEL', 'ESTACIONAMENTO',
-                      'PEDAGIO', 'IPVA'],
-    '🏠 Moradia': ['ALUGUEL', 'TRIBUTO', 'VOLUY', 'CEMIG', 'CONDOMINIO', 'IPTU', 'IMOBILIARIA'],
-    '💡 Utilidades': ['ENERGIA', 'ROYAL' 'ELETROPAULO', 'CEMIG', 'COPEL', 'CPFL',
-                      'SABESP', 'COMPANHIA DE AGUA', 'GAS ENCANADO'],
-    '📶 Internet': ['VIVO', 'INT PRE-PAGO' 'CLARO', 'TIM ', 'OI ', 'NET SERVICOS', 'INTERNET',
-                    'TELEFONIA'],
-    '🎮 Lazer': ['NETFLIX', 'SPOTIFY', 'DISNEY', 'HBO', 'PRIME VIDEO', 'CINEMA',
-                 'STEAM', 'PLAYSTATION', 'XBOX', 'INGRESSO'],
-    '👕 Vestuário': ['RENNER', 'RIACHUELO', 'C&A', 'ZARA', 'CALCADOS', 'MODA'],
-    '💊 Saúde': ['FARMACIA', 'NATUS FARMA' 'DROGA', 'DROGARIA', 'HOSPITAL', 'CLINICA',
-                 'LABORATORIO', 'PLANO DE SAUDE', 'UNIMED', 'AMIL'],
-    '📚 Educação': ['ESCOLA','PAG BOLETO FUNDACAO INSTITUTO NACIONAL' 'FACULDADE', 'UNIVERSIDADE', 'CURSO', 'MENSALIDADE',
-                    'UDEMY', 'ALURA'],
-    '💼 Trabalho': ['SALARIO', 'PROVENTOS', 'PAGAMENTO SALARIAL', 'HONORARIOS',
-                    'PIX RECEBIDO', 'TED', 'DOC RECEBID'],
-}
-
-
 def _sem_acento_maiusculo(texto):
-    """Normaliza texto para comparação (maiúsculo, sem acentos)."""
+    """Normaliza texto para usos internos do parser."""
     if not texto:
         return ''
     substituicoes = str.maketrans(
@@ -66,19 +35,6 @@ def _sem_acento_maiusculo(texto):
         'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN'
     )
     return texto.translate(substituicoes).upper()
-
-
-def sugerir_categoria(descricao, tipo):
-    """Sugere uma categoria de config.CATEGORIES com base em palavras-chave.
-    Se nada bater, cai em '📦 Outros'."""
-    desc_norm = _sem_acento_maiusculo(descricao)
-    for categoria, palavras in PALAVRAS_CHAVE_CATEGORIA.items():
-        if categoria not in CATEGORIES:
-            continue
-        for palavra in palavras:
-            if palavra in desc_norm:
-                return categoria
-    return '📦 Outros'
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +93,7 @@ def parse_ofx(conteudo):
             'descricao': memo,
             'valor': valor_abs,
             'tipo': tipo,
-            'categoria_sugerida': sugerir_categoria(memo, tipo),
+            'categoria_sugerida': '📦 Outros',
             'fitid': fitid,
         })
 
@@ -200,13 +156,14 @@ def parse_pdf(caminho_arquivo):
             tipo = 'Receita'
         valor_abs = abs(valor)
 
+
         descricao = descricao.strip()
         transacoes.append({
             'data': data_fmt,
             'descricao': descricao,
             'valor': valor_abs,
             'tipo': tipo,
-            'categoria_sugerida': sugerir_categoria(descricao, tipo),
+            'categoria_sugerida': '📦 Outros',
             'fitid': None,
         })
 
@@ -294,7 +251,7 @@ def parse_csv(conteudo):
             'descricao': descricao,
             'valor': valor_abs,
             'tipo': tipo,
-            'categoria_sugerida': sugerir_categoria(descricao, tipo),
+            'categoria_sugerida': '📦 Outros',
             'fitid': None,
         })
 
